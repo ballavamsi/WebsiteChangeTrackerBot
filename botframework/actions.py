@@ -20,7 +20,8 @@ import difflib
 
 messages = {
     "start": "Hello %s",
-    "add": "Please enter the url you want to track",
+    "add": "Please enter the url you want to track: \
+        ex: https://ballavamsi.com",
     "add_success": "Tracking %s",
     "add_fail": "Tracking failed",
     "del": "Please enter the url you want to stop tracking",
