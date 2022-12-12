@@ -354,7 +354,6 @@ class Actions:
 
     async def begin_jobs(self, update: Update, context: CallbackContext):
 
-        pdb.set_trace()
         if str(update.effective_user.id) not in ADMIN_USERS:
             return
 
