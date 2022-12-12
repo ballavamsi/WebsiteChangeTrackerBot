@@ -1,0 +1,5 @@
+/.env
+/.vscode
+/data
+/geckodriver.log
+/websitechangertracker.db

@@ -1,0 +1,14 @@
+python-dotenv
+APScheduler
+cachetools
+certifi
+python-telegram-bot==20.0a0
+requests
+db-sqlite3
+validators
+imutils
+opencv-python
+scikit-image
+numpy
+beautifulsoup4
+#npm -g phantomjs
