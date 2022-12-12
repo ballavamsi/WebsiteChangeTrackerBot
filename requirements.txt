@@ -11,4 +11,5 @@ opencv-python
 scikit-image
 numpy
 beautifulsoup4
+selenium
 #npm -g phantomjs
