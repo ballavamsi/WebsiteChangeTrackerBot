@@ -7,6 +7,8 @@ from telegram.ext import (
 from .actions import Actions
 from helpers.constants import ACCESS_TOKEN
 
+import os
+
 
 class Bot:
     def __init__(self):
@@ -81,3 +83,6 @@ class Bot:
         app.add_handler(CommandHandler("help", action.help_info))
         app.add_handler(CommandHandler("beginjobs", action.begin_jobs))
         app.run_polling()
+
+        if not os.dir_exists("data"):
+            os.makedirs("data")
