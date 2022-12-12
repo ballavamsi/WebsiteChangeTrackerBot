@@ -256,7 +256,7 @@ class Actions:
             return self.REENTER
 
         await self.reply_msg(update, "Taking screenshot")
-        s = Screenshot(admin_user=track_data[2] in ADMIN_USERS)
+        s = Screenshot(str(admin_user=track_data[2]) in ADMIN_USERS)
         filename = s.capture(track_data[3], track_data[0])
         await update.message.reply_photo(open(filename, 'rb'))
         return ConversationHandler.END
@@ -270,7 +270,7 @@ class Actions:
 
     async def take_screenshot_and_compare(self, context: CallbackContext):
         track_data = context.job.context
-        s = Screenshot(admin_user=track_data[2] in ADMIN_USERS)
+        s = Screenshot(str(admin_user=track_data[2]) in ADMIN_USERS)
         filename = s.capture(track_data[3], track_data[0])
         new_filename = f"data/screenshot_{track_data[0]}_new.png"
         old_filename = f"data/screenshot_{track_data[0]}_old.png"
@@ -354,7 +354,8 @@ class Actions:
 
     async def begin_jobs(self, update: Update, context: CallbackContext):
 
-        if update.effective_user.id not in ADMIN_USERS:
+        pdb.set_trace()
+        if str(update.effective_user.id) not in ADMIN_USERS:
             return
 
         urls = self._db.list_all_tracking()
