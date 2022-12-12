@@ -3,3 +3,5 @@
 /data
 /geckodriver.log
 /websitechangertracker.db
+/__pycache__
+botframework/__pycache__/*.pyc
