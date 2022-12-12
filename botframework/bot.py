@@ -84,5 +84,5 @@ class Bot:
         app.add_handler(CommandHandler("beginjobs", action.begin_jobs))
         app.run_polling()
 
-        if not os.dir_exists("data"):
+        if not os.path.exists("data"):
             os.makedirs("data")

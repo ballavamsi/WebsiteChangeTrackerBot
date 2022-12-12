@@ -6,3 +6,12 @@
     Link to Telegram Bot<br/>
     <a href="https://t.me/WebsiteChangeTrackerBot">https://t.me/WebsiteChangeTrackerBot</a>
 </p>
+<p>
+    Running app</br>
+    You need to create a bot with https://t.me/BotFather
+    Rename .env-main to .env
+    Update the WebsiteChangeTrackerBot_ACCESS_TOKEN with your new bot token.
+    <code>
+        python main.py
+    </code>
+    </p>
