@@ -7,7 +7,6 @@ requests
 db-sqlite3
 validators
 imutils
-opencv
 opencv-python
 opencv_contrib_python
 scikit-image
