@@ -1,0 +1,1 @@
+task: python main.py
