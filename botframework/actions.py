@@ -256,7 +256,7 @@ class Actions:
             return self.REENTER
 
         await self.reply_msg(update, "Taking screenshot")
-        s = Screenshot(str(admin_user=track_data[2]) in ADMIN_USERS)
+        s = Screenshot(admin_user=str(track_data[2]) in ADMIN_USERS)
         filename = s.capture(track_data[3], track_data[0])
         await update.message.reply_photo(open(filename, 'rb'))
         return ConversationHandler.END
@@ -270,26 +270,28 @@ class Actions:
 
     async def take_screenshot_and_compare(self, context: CallbackContext):
         track_data = context.job.context
-        s = Screenshot(str(admin_user=track_data[2]) in ADMIN_USERS)
-        filename = s.capture(track_data[3], track_data[0])
-        new_filename = f"data/screenshot_{track_data[0]}_new.png"
-        old_filename = f"data/screenshot_{track_data[0]}_old.png"
+        s = Screenshot(admin_user=str(track_data[2]) in ADMIN_USERS)
+        temp_filename = s.capture(track_data[3], track_data[0])
+        new_filename = temp_filename.replace('temp', 'old')
+        old_filename = temp_filename.replace('temp', 'new')
 
         if not os.path.exists(old_filename):
+            os.replace(temp_filename, old_filename)
             return
 
-        if not os.path.exists(filename):
+        if not os.path.exists(temp_filename):
             return
 
         # compare temp image and new image
         # only if they are different then replace new image with temp image
 
         if os.path.exists(new_filename):
-            c = ImageComparer(track_data[0], filename, new_filename)
+            c = ImageComparer(track_data[0], temp_filename, new_filename)
             if c.compare() > 0:
-                os.rename(filename, new_filename)
+                os.remove(new_filename)
+                os.replace(temp_filename, new_filename)
         else:
-            os.rename(filename, new_filename)
+            os.replace(temp_filename, new_filename)
 
         # compare old image and new image
         c = ImageComparer(track_data[0], old_filename, new_filename)
@@ -319,7 +321,7 @@ class Actions:
                 os.remove(old_filename)
 
             if os.path.exists(new_filename):
-                os.rename(new_filename, old_filename)
+                os.replace(new_filename, old_filename)
 
     async def check_api_and_compare(self, context: CallbackContext):
         response = requests.get(context.job.context[3])
