@@ -11,10 +11,10 @@ from bs4 import BeautifulSoup
 import pdb
 
 
-from helpers._screenshot import Screenshot
-from helpers._imagecompare import ImageComparer
-from helpers._logging import logger
-from helpers._db import DBHelper
+from helpers.screenshot import Screenshot
+from helpers.imagecompare import ImageComparer
+from helpers.logging import logger
+from helpers.db import DBHelper
 from botframework.constants import *
 import difflib
 
