@@ -12,7 +12,7 @@ class Screenshot:
     Initialize the webdriver
     """
     def __init__(self, admin_user):
-        self.browser = os.environ.get("BROWSER", "brave")
+        self.browser = os.environ.get("DEFAULT_BROWSER", "chrome")
 
         if self.driver is None:
             # current folder
@@ -56,21 +56,35 @@ class Screenshot:
                                 executable_path=os.path.join(driver_path,
                                                              driver_name),
                                 chrome_options=options)
-        self.driver.set_window_position(-10000, 0)
-        self.driver.set_window_size(1440, 900)
+            elif self.browser == "remotechrome":
+
+                options = webdriver.ChromeOptions()
+                options.add_argument('--ignore-ssl-errors=yes')
+                options.add_argument('--ignore-certificate-errors')
+                
+                self.driver = webdriver.Remote(
+                               command_executor=os.environ.get("SELENIUM_URL"),
+                               options=options)
+
+        if self.browser != "remotechrome":
+            self.driver.set_window_position(-10000, 0)
+            self.driver.set_window_size(1440, 900)
+        else:
+            self.driver.maximize_window()
 
     """
     Capture screenshot of a given url
     """
     def capture(self, url, task_id):
         self.driver.get(url)
+
+        os.makedirs(os.path.join(self.app_dir, "data"), exist_ok=True)
         # unique filename
         filename = os.path.join(self.app_dir,
                                 "data",
                                 f"screenshot_{task_id}_temp.png")
 
-        time.sleep(15)
-        # self.driver.save_full_page_screenshot(filename)
+        time.sleep(int(os.getenv("SCREENSHOT_DELAY", 30)))
         self.driver.save_screenshot(filename)
         self.driver.close()
         return filename

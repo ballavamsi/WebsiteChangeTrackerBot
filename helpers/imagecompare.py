@@ -67,6 +67,7 @@ class ImageComparer:
         path = os.path.dirname(self.image2)
         filename = os.path.basename(self.image2)
 
-        output_file_name = f"data/screenshot_{self.track_id}_diff.png"
+        output_file_name = f"{os.getenv('FILESYSTEM_PATH')}/"\
+                           f"screenshot_{self.track_id}_diff.png"
         cv2.imwrite(output_file_name, new)
         return output_file_name

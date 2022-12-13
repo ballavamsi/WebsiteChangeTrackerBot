@@ -5,3 +5,4 @@
 /websitechangertracker.db
 /__pycache__
 botframework/__pycache__/*.pyc
+docker-compose-local.yml

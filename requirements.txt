@@ -13,4 +13,5 @@ scikit-image
 numpy
 beautifulsoup4
 selenium
+mysql-connector-python
 #npm -g phantomjs

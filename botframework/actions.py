@@ -10,7 +10,7 @@ import requests
 from bs4 import BeautifulSoup
 import pdb
 
-
+from helpers.imageconverter import ImageConverter
 from helpers.screenshot import Screenshot
 from helpers.imagecompare import ImageComparer
 from helpers.logging import logger
@@ -20,12 +20,12 @@ import difflib
 
 messages = {
     "start": "Hello %s",
-    "add": "Please enter the url you want to track: \
-        ex: https://ballavamsi.com",
+    "add": "Please enter the url you want to track:"
+    "\nex: https://ballavamsi.com",
     "add_success": "Tracking %s",
     "add_fail": "Tracking failed",
     "del": "Please enter the url you want to stop tracking",
-    "del_id": "Please enter the id of the url you want to stop tracking",
+    "del_id": "Please enter the ID of the url you want to stop tracking",
     "del_success": "Tracking stopped %s",
     "del_fail": "Tracking stop failed",
     "list": "Please select the url you want to track",
@@ -33,14 +33,15 @@ messages = {
     "list_empty": "No tracking found",
     "list_fail": "List failed",
     "screenshot": "Please enter the url you want to take screenshot",
-    "screenshot_id": "Please enter the id of the url you want to take \
-        screenshot",
+    "screenshot_id": "Please enter the ID of the url you want to take "
+    "screenshot",
     "screenshot_success": "Screenshot taken",
     "screenshot_fail": "Screenshot failed",
-    "screenshot_change": "We have identified a change in the screenshot\
-         for %s",
+    "screenshot_change": "We have identified a change in the screenshot"
+    "for %s",
     "api_change": "We have identified a change in the api response for %s",
-    "track_type": "Please select the type of compare from options below",
+    "track_type": "Please select the capture type to compare from "
+    "options below",
     "track_type_fail": "Invalid type",
     "invalid_url": "Invalid url",
     "invalid_type": "Invalid type",
@@ -56,24 +57,41 @@ messages = {
 class Actions:
 
     ADD, DELETE, TRACK, TRACK_TYPE, REENTER, SCREENSHOT, LIST = range(7)
-    _db = DBHelper()
 
     def __init__(self):
-        pass
+        self.image_converter = ImageConverter()
+        self._db = DBHelper()
 
     async def reply_msg(self, update: Update, *args, **kwargs):
+
+        logger.info(f"Replying with {args[0]} "
+                    f"to {update.message.from_user.id} "
+                    f"({update.message.from_user.first_name})")
+
         if kwargs.get('reply_markup') is None:
             kwargs['reply_markup'] = ReplyKeyboardRemove()
 
         await update.message.reply_text(*args, **kwargs)
 
     async def commandsHandler(self, update: Update, context: CallbackContext):
+
+        if self._db.fetch_user(update.message.from_user.id) is None:
+            self._db.insert_user(update.message.from_user.id,
+                                 update.message.from_user.first_name,
+                                 update.message.from_user.username)
+
+        logger.info(f"Received command {update.message.text} from "
+                    f"{update.message.from_user.id} "
+                    f"({update.message.from_user.first_name})")
+
         if update.message.text in ["/cancel"]:
             await self.reply_msg(update, messages["cancel"])
             return ConversationHandler.END
         return None
 
     async def start(self, update: Update, context: CallbackContext):
+        if await self.commandsHandler(update, context) is not None:
+            return ConversationHandler.END
         await self.reply_msg(update,
                              messages["start"] %
                              update.message.from_user.first_name)
@@ -81,6 +99,9 @@ class Actions:
         return self.TRACK
 
     async def add_tracking_begin(self, update: Update, context):
+        if await self.commandsHandler(update, context) is not None:
+            return ConversationHandler.END
+
         await self.reply_msg(update, messages["add"])
         return self.TRACK
 
@@ -109,10 +130,13 @@ class Actions:
         return self.TRACK_TYPE
 
     async def stop_tracking_begin(self, update: Update, context):
+        if await self.commandsHandler(update, context) is not None:
+            return ConversationHandler.END
         urls = self._db.list_tracking(update.message.from_user.id)
         list_urls_msg = messages["del_id"]
         for url in urls:
-            list_urls_msg += f"\n{url[0]} - {url[3]} - Type: {url[4]}"
+            list_urls_msg += f"\nID: {url[0]}\n-> URL: {url[3]}" + \
+                f"\n-> Capture Type: {url[4]}"
         await self.reply_msg(update,
                              list_urls_msg,
                              disable_web_page_preview=True)
@@ -137,11 +161,16 @@ class Actions:
             await self.reply_msg(update, messages["invalid_id"])
             return self.REENTER
 
-        # delete daata files
-        if os.path.exists(f"data/screenshot_{track_data[0]}_old.png"):
-            os.remove(f"data/screenshot_{track_data[0]}_old.png")
-        if os.path.exists(f"data/screenshot_{track_data[0]}_new.png"):
-            os.remove(f"data/screenshot_{track_data[0]}_new.png")
+        # delete data files
+        if os.getenv("USE_FILESYSTEM_TO_SAVE_IMAGES") == "True":
+            if os.path.exists(f"{os.getenv('FILESYSTEM_PATH')}/"
+                              f"screenshot_{track_data[0]}_old.png"):
+                os.remove(f"{os.getenv('FILESYSTEM_PATH')}" +
+                          f"/screenshot_{track_data[0]}_old.png")
+            if os.path.exists(f"{os.getenv('FILESYSTEM_PATH')}/"
+                              f"screenshot_{track_data[0]}_new.png"):
+                os.remove(f"{os.getenv('FILESYSTEM_PATH')}/"
+                          f"screenshot_{track_data[0]}_new.png")
 
         self._db.delete_tracking(update.message.text)
         self.remove_job_if_exists(str(track_data[0]), context)
@@ -179,6 +208,7 @@ class Actions:
                     update.effective_message.chat_id,
                     context.user_data['url'],
                     context.user_data['type'])
+        logger.info("Added new tracking with id %s", new_id)
         await self.reply_msg(
                 update,
                 messages["add_success"] % context.user_data['url'],
@@ -197,8 +227,8 @@ class Actions:
             await self.reply_msg(update, messages["list_display"])
             urls_list = ""
             for url in urls:
-                urls_list = urls_list + f"{url[0]} - {url[3]} -\
-                     Type: {url[4]}\n"
+                urls_list = urls_list + f"ID: {url[0]}\n-> URL: {url[3]}" + \
+                                f"\n-> Capture Type: {url[4]}\n"
             await self.reply_msg(update,
                                  urls_list,
                                  disable_web_page_preview=True)
@@ -225,8 +255,8 @@ class Actions:
         urls = self._db.list_tracking(update.message.from_user.id)
         list_urls_msg = messages["screenshot_id"]
         for url in urls:
-            list_urls_msg = list_urls_msg + f"\n{url[0]} - {url[3]} \
-                - Type: {url[4]}"
+            list_urls_msg = list_urls_msg + f"\nID: {url[0]}\n-> URL: " + \
+                f"{url[3]}\n-> Capture Type: {url[4]}"
         await self.reply_msg(update,
                              list_urls_msg,
                              disable_web_page_preview=True)
@@ -276,21 +306,44 @@ class Actions:
         new_filename = temp_filename.replace('temp', 'old')
         old_filename = temp_filename.replace('temp', 'new')
 
+        if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+            if track_data[5] is None:
+                track_data[5] = self.image_converter.\
+                                    convert_image_to_base64(temp_filename)
+                self._db.update_tracking(track_data[0],
+                                         'old_image',
+                                         track_data[5])
+                return
+            else:
+                self.image_converter.convert_base64_to_image(
+                    track_data[5],
+                    old_filename)
+
         if not os.path.exists(old_filename):
             os.replace(temp_filename, old_filename)
             return
 
-        if not os.path.exists(temp_filename):
-            return
-
         # compare temp image and new image
         # only if they are different then replace new image with temp image
+
+        if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+            if not track_data[6] is None:
+                self.image_converter.convert_base64_to_image(
+                    track_data[6],
+                    new_filename)
 
         if os.path.exists(new_filename):
             c = ImageComparer(track_data[0], temp_filename, new_filename)
             if c.compare() > 0:
                 os.remove(new_filename)
                 os.replace(temp_filename, new_filename)
+
+                if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+                    track_data[6] = self.image_converter.\
+                                        convert_image_to_base64(new_filename)
+                    self._db.update_tracking(track_data[0],
+                                             'new_image',
+                                             track_data[6])
         else:
             os.replace(temp_filename, new_filename)
 
@@ -321,8 +374,24 @@ class Actions:
             if os.path.exists(old_filename):
                 os.remove(old_filename)
 
+                if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+                    self._db.update_tracking(track_data[0],
+                                             'old_image',
+                                             None)
+
             if os.path.exists(new_filename):
                 os.replace(new_filename, old_filename)
+
+                if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+                    track_data[5] = self.image_converter.\
+                                        convert_image_to_base64(new_filename)
+                    self._db.update_tracking(track_data[0],
+                                             'old_image',
+                                             track_data[5])
+
+                    self._db.update_tracking(track_data[0],
+                                             'new_image',
+                                             None)
 
     async def check_api_and_compare(self, context: CallbackContext):
         response = requests.get(context.job.context[3])
@@ -332,8 +401,18 @@ class Actions:
         soup = BeautifulSoup(response.text, 'html.parser')
         new_text = soup.prettify()
         old_text = ""
-        if os.path.exists(f"data/api_{context.job.context[0]}_old.txt"):
-            with open(f"data/api_{context.job.context[0]}_old.txt", "r") as f:
+
+        if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+            if not context.job.context[5] is None:
+                with open(f"{os.getenv('FILESYSTEM_PATH')}"
+                          f"/api_{context.job.context[0]}_old.txt",
+                          "w") as f:
+                    f.write(context.job.context[5])
+
+        if os.path.exists(f"{os.getenv('FILESYSTEM_PATH')}/"
+                          f"api_{context.job.context[0]}_old.txt"):
+            with open(f"{os.getenv('FILESYSTEM_PATH')}/"
+                      f"api_{context.job.context[0]}_old.txt", "r") as f:
                 old_text = f.read()
 
             if old_text != new_text:
@@ -347,13 +426,25 @@ class Actions:
                 await context.bot.send_message(
                     chat_id=context.job.context[2],
                     text=f"New Response\n{new_text}")
-                with open(f"data/api_{context.job.context[0]}\
+                with open(f"{os.getenv('FILESYSTEM_PATH')}/"
+                          f"api_{context.job.context[0]}\
                         _old.txt", "w") as f:
                     f.write(new_text)
+
+                if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+                    self._db.update_tracking(context.job.context[0],
+                                             'old_image',
+                                             new_text)
         else:
-            f = open(f"data/api_{context.job.context[0]}_old.txt", "w")
+            f = open(f"{os.getenv('FILESYSTEM_PATH')}/"
+                     f"api_{context.job.context[0]}_old.txt", "w")
             f.write(new_text)
             f.close()
+
+            if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+                self._db.update_tracking(context.job.context[0],
+                                         'old_image',
+                                         new_text)
 
     async def begin_jobs(self, update: Update, context: CallbackContext):
 
