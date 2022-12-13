@@ -90,4 +90,5 @@ class Screenshot:
         if self.browser == 'remotechrome':
             self.driver.stop_client()
         self.driver.close()
+        self.driver.quit()
         return filename

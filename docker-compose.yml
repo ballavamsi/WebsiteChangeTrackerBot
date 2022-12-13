@@ -3,6 +3,23 @@ services:
     container_name: telegram-bot-websitechangetracker
     restart: always
     build: .
+    environment:
+      WebsiteChangeTrackerBot_ACCESS_TOKEN: 
+      SQLITE_DB_PATH: websitechangertracker.db
+      ADMIN_USER: 
+      DEFAULT_JOBS_RUN_TIME: 15
+      BRAVE_BROWSER_PATH: ""
+      IS_HEADLESS: "False"
+      DEFAULT_BROWSER: remotechrome
+      SELENIUM_URL: http://selenium-hub:4444/wd/hub
+      SCREENSHOT_DELAY: 5
+      DB_TYPE: mysql
+      DB_HOST: 
+      DB_USER: 
+      DB_PASSWORD: 
+      DB_NAME: 
+      USE_FILESYSTEM_TO_SAVE_IMAGES: "False"
+      FILESYSTEM_PATH: /data
     volumes:
       - ./data:/data
 
@@ -23,4 +40,8 @@ services:
       - SE_EVENT_BUS_HOST=selenium-hub
       - SE_EVENT_BUS_PUBLISH_PORT=4442
       - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
-      - NODE_MAX_INSTANCES=5
+      - "NODE_MAX_SESSION:4"
+      - "NODE_MAX_INSTANCES:4"
+    deploy:
+      replicas: 2
+    entrypoint: bash -c 'SE_OPTS="--host $$HOSTNAME" /opt/bin/entry_point.sh'
