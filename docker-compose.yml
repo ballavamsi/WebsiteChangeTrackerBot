@@ -7,7 +7,7 @@ services:
       WebsiteChangeTrackerBot_ACCESS_TOKEN: 
       SQLITE_DB_PATH: websitechangertracker.db
       ADMIN_USER: 
-      DEFAULT_JOBS_RUN_TIME: 15
+      DEFAULT_JOBS_RUN_TIME: 60
       BRAVE_BROWSER_PATH: ""
       IS_HEADLESS: "False"
       DEFAULT_BROWSER: remotechrome

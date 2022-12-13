@@ -90,16 +90,14 @@ class DBHelper:
     def _execute_(self, query, data=None, commit=False, type=''):
         self._open_()
         self.cursor.execute(query, data)
-
+        if commit:
+            self.conn.commit()
         if type == 'fetchall':
             return self.cursor.fetchall()
         elif type == 'fetchone':
             return self.cursor.fetchone()
         elif type == 'lastrowid':
             return self.cursor.lastrowid
-
-        if commit:
-            self.conn.commit()
 
     def _open_(self):
         if self.conn.is_connected():

@@ -62,6 +62,17 @@ class Actions:
         self.image_converter = ImageConverter()
         self._db = DBHelper()
 
+    async def create_user(self, update: Update):
+        if self._db.fetch_user(update.message.from_user.id) is None:
+            self._db.insert_user(update.message.from_user.id,
+                                 update.message.from_user.first_name,
+                                 update.message.from_user.username)
+            logger.info(f"Created user {update.message.from_user.id}"
+                        f" ({update.message.from_user.username})")
+        else:
+            logger.info(f"User {update.message.from_user.id}"
+                        f" ({update.message.from_user.username}) exists")
+
     async def reply_msg(self, update: Update, *args, **kwargs):
 
         logger.info(f"Replying with {args[0]} "
@@ -75,11 +86,7 @@ class Actions:
 
     async def commandsHandler(self, update: Update, context: CallbackContext):
 
-        if self._db.fetch_user(update.message.from_user.id) is None:
-            self._db.insert_user(update.message.from_user.id,
-                                 update.message.from_user.first_name,
-                                 update.message.from_user.username)
-
+        await self.create_user(update)
         logger.info(f"Received command {update.message.text} from "
                     f"{update.message.from_user.id} "
                     f"({update.message.from_user.first_name})")
@@ -90,6 +97,9 @@ class Actions:
         return None
 
     async def start(self, update: Update, context: CallbackContext):
+
+        await self.create_user(update)
+
         if await self.commandsHandler(update, context) is not None:
             return ConversationHandler.END
         await self.reply_msg(update,
@@ -107,13 +117,10 @@ class Actions:
 
     async def add_tracking(self, update: Update, context: CallbackContext):
 
+        await self.create_user(update)
+
         if await self.commandsHandler(update, context) is not None:
             return ConversationHandler.END
-
-        if self._db.fetch_user(update.message.from_user.id) is None:
-            self._db.insert_user(update.message.from_user.id,
-                                 update.message.from_user.first_name,
-                                 update.message.from_user.username)
 
         # check if url is valid
         if not validators.url(update.message.text):
@@ -242,6 +249,8 @@ class Actions:
         return ConversationHandler.END
 
     async def help_info(self, update: Update, context: CallbackContext):
+
+        await self.create_user(update)
         await self.reply_msg(update, "You can enter below \
             commands\n/start - start tracking\
             \n/list - list tracking urls\
@@ -301,18 +310,20 @@ class Actions:
 
     async def take_screenshot_and_compare(self, context: CallbackContext):
         track_data = context.job.context
+
+        track_data = self._db.fetch_tracking(track_data[0])
         s = Screenshot(admin_user=str(track_data[2]) in ADMIN_USERS)
         temp_filename = s.capture(track_data[3], track_data[0])
-        new_filename = temp_filename.replace('temp', 'old')
-        old_filename = temp_filename.replace('temp', 'new')
+        new_filename = temp_filename.replace('temp', 'new')
+        old_filename = temp_filename.replace('temp', 'old')
 
         if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
             if track_data[5] is None:
-                track_data[5] = self.image_converter.\
+                old_image_content = self.image_converter.\
                                     convert_image_to_base64(temp_filename)
                 self._db.update_tracking(track_data[0],
                                          'old_image',
-                                         track_data[5])
+                                         old_image_content)
                 return
             else:
                 self.image_converter.convert_base64_to_image(
@@ -339,11 +350,11 @@ class Actions:
                 os.replace(temp_filename, new_filename)
 
                 if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
-                    track_data[6] = self.image_converter.\
+                    new_image_content = self.image_converter.\
                                         convert_image_to_base64(new_filename)
                     self._db.update_tracking(track_data[0],
                                              'new_image',
-                                             track_data[6])
+                                             new_image_content)
         else:
             os.replace(temp_filename, new_filename)
 
@@ -383,11 +394,11 @@ class Actions:
                 os.replace(new_filename, old_filename)
 
                 if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
-                    track_data[5] = self.image_converter.\
+                    new_image_content = self.image_converter.\
                                         convert_image_to_base64(new_filename)
                     self._db.update_tracking(track_data[0],
                                              'old_image',
-                                             track_data[5])
+                                             new_image_content)
 
                     self._db.update_tracking(track_data[0],
                                              'new_image',

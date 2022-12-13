@@ -12,4 +12,5 @@ class ImageConverter:
 
     def convert_base64_to_image(self, base64_string, image_path):
         with open(image_path, "wb") as fh:
-            fh.write(base64.decodebytes(base64_string))
+            image_data = base64.b64decode(base64_string)
+            fh.write(image_data)
