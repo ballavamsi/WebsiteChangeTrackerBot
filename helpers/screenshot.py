@@ -61,7 +61,7 @@ class Screenshot:
                 options = webdriver.ChromeOptions()
                 options.add_argument('--ignore-ssl-errors=yes')
                 options.add_argument('--ignore-certificate-errors')
-                
+
                 self.driver = webdriver.Remote(
                                command_executor=os.environ.get("SELENIUM_URL"),
                                options=options)
@@ -86,5 +86,8 @@ class Screenshot:
 
         time.sleep(int(os.getenv("SCREENSHOT_DELAY", 30)))
         self.driver.save_screenshot(filename)
+
+        if self.browser == 'remotechrome':
+            self.driver.stop_client()
         self.driver.close()
         return filename

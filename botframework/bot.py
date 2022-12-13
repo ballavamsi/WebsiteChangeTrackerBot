@@ -28,7 +28,7 @@ class Bot:
                 action.REENTER: [MessageHandler(filters.TEXT,
                                                 action.add_tracking)],
             },
-            fallbacks=[CommandHandler("cancel", action.cancel)],
+            fallbacks=[CommandHandler("cancel", action.cancel)]
         )
 
         add_conv_handler = ConversationHandler(
