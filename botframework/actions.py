@@ -38,7 +38,7 @@ messages = {
     "screenshot_success": "Screenshot taken",
     "screenshot_fail": "Screenshot failed",
     "screenshot_change": "We have identified a change in the screenshot"
-    "for %s",
+    " for %s",
     "api_change": "We have identified a change in the api response for %s",
     "track_type": "Please select the capture type to compare from "
     "options below",
