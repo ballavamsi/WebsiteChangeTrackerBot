@@ -26,6 +26,7 @@ Queries = {
         'insert_tracking': 'INSERT INTO tracking (user_id, chat_id,'
         'url, type) VALUES (?, ?, ?, ?)',
         'get_user': 'SELECT * FROM users WHERE telegram_user_id = ?',
+        'get_user_by_id': 'SELECT * FROM users WHERE id = ?',
         'get_all_tracking': 'SELECT * FROM tracking',
         'get_tracking': 'SELECT * FROM tracking WHERE user_id = ?',
         'get_tracking_by_id': 'SELECT * FROM tracking WHERE id = ?',
@@ -62,6 +63,7 @@ Queries = {
         'insert_tracking': 'INSERT INTO tracking (user_id, chat_id, url, type)'
         ' VALUES (%s, %s, %s, %s)',
         'get_user': 'SELECT * FROM users WHERE telegram_user_id = %s',
+        'get_user_by_id': 'SELECT * FROM users WHERE id = %s',
         'get_all_tracking': 'SELECT * FROM tracking',
         'get_tracking': 'SELECT * FROM tracking WHERE user_id = %s',
         'get_tracking_by_id': 'SELECT * FROM tracking WHERE id = %s',
@@ -148,6 +150,13 @@ class DBHelper:
             Queries[self.db_type]['get_all_feedback'],
             type='fetchall')
         return feedback
+    
+    def fetch_user_by_id(self, user_id):
+        user = self._execute_(
+                        Queries[self.db_type]['get_user_by_id'],
+                        (user_id,),
+                        type='fetchone')
+        return user
 
     def fetch_user(self, telegram_user_id):
         user = self._execute_(

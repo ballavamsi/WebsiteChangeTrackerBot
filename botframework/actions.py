@@ -36,9 +36,14 @@ messages = {
     "screenshot_id": "Please enter the ID of the url you want to take "
     "screenshot",
     "screenshot_success": "Screenshot taken",
-    "screenshot_fail": "Screenshot failed",
+    "screenshot_fail": "Failed to take screenshot for %s",
     "screenshot_change": "We have identified a change in the screenshot"
     " for %s",
+    "screenshot_taken": "Here is the screenshot of %s",
+    "screenshot_once": "Taking screenshot once",
+    "api_response": "API response captured\n%s",
+    "api_error": "We didn't receive 200 from API - %s",
+    "api_fail": "Failed to capture API response for %s",
     "api_change": "We have identified a change in the api response for %s",
     "track_type": "Please select the capture type to compare from "
     "options below",
@@ -197,20 +202,38 @@ class Actions:
 
         # add jobs to queue
         if context.user_data['type'] == "api":
+            await self.reply_msg(update, "Calling API once")
+            context.job_queue.run_once(
+                self.call_api_once,
+                2,
+                chat_id=update.effective_message.chat_id,
+                name='once_' + str(new_id),
+                context=track_data
+            )
             context.job_queue.run_repeating(
                 self.check_api_and_compare,
                 DEFAULT_JOBS_RUN_TIME,
                 chat_id=update.effective_message.chat_id,
                 name=str(new_id),
                 context=track_data)
+
         if context.user_data['type'] == 'screenshot':
+            await self.reply_msg(update, "Taking screenshot once")
             context.job_queue.run_repeating(
                 self.take_screenshot_and_compare,
                 DEFAULT_JOBS_RUN_TIME,
                 chat_id=update.effective_message.chat_id,
                 name=str(new_id),
                 context=track_data)
-        return self.LIST
+            context.job_queue.run_once(
+                self.take_screenshot_once,
+                2,
+                chat_id=update.effective_message.chat_id,
+                name='once_' + str(new_id),
+                context=track_data
+            )
+
+        return ConversationHandler.END
 
     async def add_tracking_to_db(self, update, context):
         new_id = self._db.insert_tracking(
@@ -299,13 +322,19 @@ class Actions:
             await self.reply_msg(update, messages["invalid_type"])
             return self.REENTER
 
-        await self.reply_msg(update, "Taking screenshot")
-        s = Screenshot(admin_user=str(track_data[2]) in ADMIN_USERS)
-        filename = s.capture(track_data[3], track_data[0])
-        await update.message.reply_photo(open(filename, 'rb'))
+        await self.reply_msg(update, "Taking screenshot once")
+        context.job_queue.run_once(
+            self.take_screenshot_once,
+            2,
+            chat_id=update.effective_message.chat_id,
+            name='once_' + str(track_data[0]),
+            context=track_data
+        )
         return ConversationHandler.END
 
     async def add_feedback_begin(self, update: Update, context):
+
+        await self.create_user(update)
         await self.reply_msg(update, messages["add_feedback"])
         return self.FEEDBACK
 
@@ -329,7 +358,7 @@ class Actions:
         feedbacks = self._db.list_feedback()
         feedbacks_list = ""
         for feedback in feedbacks:
-            feedback_user = self._db.fetch_user(feedback[1])
+            feedback_user = self._db.fetch_user_by_id(feedback[1])
             feedbacks_list = \
                 feedbacks_list + f"User: " + \
                 f"{feedback_user[2]}" + \
@@ -346,11 +375,30 @@ class Actions:
             for job in current_jobs:
                 job.schedule_removal()
 
+    async def take_screenshot_once(self, context: CallbackContext):
+        track_data = context.job.context
+        try:
+            s = Screenshot(admin_user=str(track_data[2]) in ADMIN_USERS)
+            temp_filename = s.capture(track_data[3], track_data[0])
+
+            await context.bot.send_message(
+                chat_id=track_data[2],
+                text=f"{messages['screenshot_taken']}" % track_data[3])
+
+            await context.bot.send_photo(
+                chat_id=track_data[2],
+                photo=open(temp_filename, 'rb'))
+        except Exception as e:
+            await context.bot.send_message(
+                chat_id=track_data[2],
+                text=f"{messages['screenshot_fail']}" % track_data[3])
+            logger.error(e)
+
     async def take_screenshot_and_compare(self, context: CallbackContext):
         try:
             track_data = context.job.context
 
-            track_data = self._db.fetch_tracking(track_data[0])
+            # track_data = self._db.fetch_tracking(track_data[0])
             s = Screenshot(admin_user=str(track_data[2]) in ADMIN_USERS)
             temp_filename = s.capture(track_data[3], track_data[0])
             new_filename = temp_filename.replace('temp', 'new')
@@ -464,58 +512,87 @@ class Actions:
         except Exception as e:
             logger.error(e)
 
-    async def check_api_and_compare(self, context: CallbackContext):
-        response = requests.get(context.job.context[3])
-        if response.status_code != 200:
-            return
-
-        soup = BeautifulSoup(response.text, 'html.parser')
-        new_text = soup.prettify()
-        old_text = ""
-
-        if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
-            if not context.job.context[5] is None:
-                with open(f"{os.getenv('FILESYSTEM_PATH')}"
-                          f"/api_{context.job.context[0]}_old.txt",
-                          "w") as f:
-                    f.write(context.job.context[5])
-
-        if os.path.exists(f"{os.getenv('FILESYSTEM_PATH')}/"
-                          f"api_{context.job.context[0]}_old.txt"):
-            with open(f"{os.getenv('FILESYSTEM_PATH')}/"
-                      f"api_{context.job.context[0]}_old.txt", "r") as f:
-                old_text = f.read()
-
-            if old_text != new_text:
+    async def call_api_once(self, context: CallbackContext):
+        try:
+            response = requests.get(context.job.context[3])
+            if response.status_code != 200:
+                logger.error("Error while calling api %s", response.text)
                 await context.bot.send_message(
+                    chat_id=context.job.context[2],
+                    text=messages["api_error"] % context.job.context[3],
+                    disable_web_page_preview=True)
+                return
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+            new_text = soup.prettify()
+            await context.bot.send_message(
+                    chat_id=context.job.context[2],
+                    text=messages["api_response"] % context.job.context[3],
+                    disable_web_page_preview=True)
+        except Exception as e:
+            logger.error(e)
+            await context.bot.send_message(
+                    chat_id=context.job.context[2],
+                    text=messages["api_fail"] % context.job.context[3],
+                    disable_web_page_preview=True)
+
+    async def check_api_and_compare(self, context: CallbackContext):
+        try:
+            response = requests.get(context.job.context[3])
+            if response.status_code != 200:
+                return
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+            new_text = soup.prettify()
+            old_text = ""
+
+            if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+                if not context.job.context[5] is None:
+                    with open(f"{os.getenv('FILESYSTEM_PATH')}"
+                              f"/api_{context.job.context[0]}_old.txt",
+                              "w") as f:
+                        f.write(context.job.context[5])
+
+            if os.path.exists(f"{os.getenv('FILESYSTEM_PATH')}/"
+                              f"api_{context.job.context[0]}_old.txt"):
+                with open(f"{os.getenv('FILESYSTEM_PATH')}/"
+                          f"api_{context.job.context[0]}_old.txt", "r") as f:
+                    old_text = f.read()
+
+                if old_text != new_text:
+                    await context.bot.send_message(
                         chat_id=context.job.context[2],
                         text=messages["api_change"] % context.job.context[3],
                         disable_web_page_preview=True)
-                await context.bot.send_message(
-                    chat_id=context.job.context[2],
-                    text=f"Old Response\n{old_text}")
-                await context.bot.send_message(
-                    chat_id=context.job.context[2],
-                    text=f"New Response\n{new_text}")
-                with open(f"{os.getenv('FILESYSTEM_PATH')}/"
-                          f"api_{context.job.context[0]}\
-                        _old.txt", "w") as f:
-                    f.write(new_text)
+                    await context.bot.send_message(
+                        chat_id=context.job.context[2],
+                        text=f"Old Response\n{old_text}")
+                    await context.bot.send_message(
+                        chat_id=context.job.context[2],
+                        text=f"New Response\n{new_text}")
+                    with open(f"{os.getenv('FILESYSTEM_PATH')}/"
+                              f"api_{context.job.context[0]}"
+                              "_old.txt", "w") as f:
+                        f.write(new_text)
+
+                    if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+                        self._db.update_tracking(
+                            context.job.context[0],
+                            'old_image',
+                            new_text)
+            else:
+                f = open(f"{os.getenv('FILESYSTEM_PATH')}/"
+                         f"api_{context.job.context[0]}_old.txt", "w")
+                f.write(new_text)
+                f.close()
 
                 if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
-                    self._db.update_tracking(context.job.context[0],
-                                             'old_image',
-                                             new_text)
-        else:
-            f = open(f"{os.getenv('FILESYSTEM_PATH')}/"
-                     f"api_{context.job.context[0]}_old.txt", "w")
-            f.write(new_text)
-            f.close()
-
-            if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
-                self._db.update_tracking(context.job.context[0],
-                                         'old_image',
-                                         new_text)
+                    self._db.update_tracking(
+                        context.job.context[0],
+                        'old_image',
+                        new_text)
+        except Exception as e:
+            logger.error(e)
 
     async def begin_jobs(self, update: Update, context: CallbackContext):
 
