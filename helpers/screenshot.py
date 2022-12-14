@@ -78,10 +78,8 @@ class Screenshot:
     def capture(self, url, task_id):
         self.driver.get(url)
 
-        os.makedirs(os.path.join(self.app_dir, "data"), exist_ok=True)
         # unique filename
-        filename = os.path.join(self.app_dir,
-                                "data",
+        filename = os.path.join(os.getenv("FILESYSTEM_PATH"),
                                 f"screenshot_{task_id}_temp.png")
 
         time.sleep(int(os.getenv("SCREENSHOT_DELAY", 30)))

@@ -309,100 +309,122 @@ class Actions:
                 job.schedule_removal()
 
     async def take_screenshot_and_compare(self, context: CallbackContext):
-        track_data = context.job.context
+        try:
+            track_data = context.job.context
 
-        track_data = self._db.fetch_tracking(track_data[0])
-        s = Screenshot(admin_user=str(track_data[2]) in ADMIN_USERS)
-        temp_filename = s.capture(track_data[3], track_data[0])
-        new_filename = temp_filename.replace('temp', 'new')
-        old_filename = temp_filename.replace('temp', 'old')
+            track_data = self._db.fetch_tracking(track_data[0])
+            s = Screenshot(admin_user=str(track_data[2]) in ADMIN_USERS)
+            temp_filename = s.capture(track_data[3], track_data[0])
+            new_filename = temp_filename.replace('temp', 'new')
+            old_filename = temp_filename.replace('temp', 'old')
 
-        if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
-            if track_data[5] is None:
-                old_image_content = self.image_converter.\
-                                    convert_image_to_base64(temp_filename)
-                self._db.update_tracking(track_data[0],
-                                         'old_image',
-                                         old_image_content)
+            if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+                if track_data[5] is None:
+                    old_image_content = self.image_converter.\
+                                        convert_image_to_base64(temp_filename)
+                    self._db.update_tracking(
+                        track_data[0],
+                        'old_image',
+                        old_image_content)
+                    return
+                else:
+                    self.image_converter.convert_base64_to_image(
+                        track_data[5],
+                        old_filename)
+
+            if not os.path.exists(old_filename):
+                os.replace(temp_filename, old_filename)
                 return
-            else:
-                self.image_converter.convert_base64_to_image(
-                    track_data[5],
-                    old_filename)
 
-        if not os.path.exists(old_filename):
-            os.replace(temp_filename, old_filename)
-            return
+            # compare temp image and new image
+            # only if they are different then replace new image with temp image
 
-        # compare temp image and new image
-        # only if they are different then replace new image with temp image
-
-        if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
-            if not track_data[6] is None:
-                self.image_converter.convert_base64_to_image(
-                    track_data[6],
-                    new_filename)
-
-        if os.path.exists(new_filename):
-            c = ImageComparer(track_data[0], temp_filename, new_filename)
-            if c.compare() > 0:
-                os.remove(new_filename)
-                os.replace(temp_filename, new_filename)
-
-                if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
-                    new_image_content = self.image_converter.\
-                                        convert_image_to_base64(new_filename)
-                    self._db.update_tracking(track_data[0],
-                                             'new_image',
-                                             new_image_content)
-        else:
-            os.replace(temp_filename, new_filename)
-
-        # compare old image and new image
-        c = ImageComparer(track_data[0], old_filename, new_filename)
-        if c.compare() > 0:
-            await context.bot.send_message(
-                chat_id=track_data[2],
-                text=messages["screenshot_change"] % track_data[3],
-                disable_web_page_preview=True)
-            output_file_name = c.compare_and_highlight()
-            await context.bot.send_message(chat_id=track_data[2],
-                                           text="Old Image")
-            await context.bot.send_photo(chat_id=track_data[2],
-                                         photo=open(old_filename, 'rb'))
-            await context.bot.send_message(chat_id=track_data[2],
-                                           text="New Image")
-            await context.bot.send_photo(chat_id=track_data[2],
-                                         photo=open(new_filename, 'rb'))
-            await context.bot.send_message(chat_id=track_data[2],
-                                           text="Differences")
-            await context.bot.send_photo(chat_id=track_data[2],
-                                         photo=open(output_file_name, 'rb'))
-
-            if os.path.exists(output_file_name):
-                os.remove(output_file_name)
-
-            if os.path.exists(old_filename):
-                os.remove(old_filename)
-
-                if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
-                    self._db.update_tracking(track_data[0],
-                                             'old_image',
-                                             None)
+            if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+                if not track_data[6] is None:
+                    self.image_converter.convert_base64_to_image(
+                        track_data[6],
+                        new_filename)
 
             if os.path.exists(new_filename):
-                os.replace(new_filename, old_filename)
+                c = ImageComparer(track_data[0], temp_filename, new_filename)
+                if c.compare() > 0:
+                    os.remove(new_filename)
+                    os.replace(temp_filename, new_filename)
 
-                if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
-                    new_image_content = self.image_converter.\
-                                        convert_image_to_base64(new_filename)
-                    self._db.update_tracking(track_data[0],
-                                             'old_image',
-                                             new_image_content)
+                    if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+                        new_image_content = self.\
+                            image_converter.\
+                            convert_image_to_base64(new_filename)
+                        self._db.update_tracking(
+                            track_data[0],
+                            'new_image',
+                            new_image_content)
+            else:
+                os.replace(temp_filename, new_filename)
 
-                    self._db.update_tracking(track_data[0],
-                                             'new_image',
-                                             None)
+            # compare old image and new image
+            c = ImageComparer(track_data[0], old_filename, new_filename)
+            if c.compare() > 0:
+
+                logger.info("Image changed for %s\n"
+                            "Sending message to %s\n",
+                            track_data[3],
+                            track_data[2])
+
+                await context.bot.send_message(
+                    chat_id=track_data[2],
+                    text=messages["screenshot_change"] % track_data[3],
+                    disable_web_page_preview=True)
+                output_file_name = c.compare_and_highlight()
+                await context.bot.send_message(
+                        chat_id=track_data[2],
+                        text="Old Image")
+                await context.bot.send_photo(
+                        chat_id=track_data[2],
+                        photo=open(old_filename, 'rb'))
+                await context.bot.send_message(
+                        chat_id=track_data[2],
+                        text="New Image")
+                await context.bot.send_photo(
+                        chat_id=track_data[2],
+                        photo=open(new_filename, 'rb'))
+                await context.bot.send_message(
+                        chat_id=track_data[2],
+                        text="Differences")
+                await context.bot.send_photo(
+                        chat_id=track_data[2],
+                        photo=open(output_file_name, 'rb'))
+
+                if os.path.exists(output_file_name):
+                    os.remove(output_file_name)
+
+                if os.path.exists(old_filename):
+                    os.remove(old_filename)
+
+                    if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+                        self._db.update_tracking(
+                            track_data[0],
+                            'old_image',
+                            None)
+
+                if os.path.exists(new_filename):
+                    os.replace(new_filename, old_filename)
+
+                    if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+                        new_image_content = \
+                            self.image_converter.\
+                            convert_image_to_base64(new_filename)
+                        self._db.update_tracking(
+                            track_data[0],
+                            'old_image',
+                            new_image_content)
+
+                        self._db.update_tracking(
+                            track_data[0],
+                            'new_image',
+                            None)
+        except Exception as e:
+            logger.error(e)
 
     async def check_api_and_compare(self, context: CallbackContext):
         response = requests.get(context.job.context[3])
