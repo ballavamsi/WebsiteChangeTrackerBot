@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import mysql.connector
+from datetime import datetime
 
 from .constants import DB_FILE
 
@@ -14,6 +15,12 @@ Queries = {
                 (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, \
                 user_id INT, chat_id INT, url TEXT, type TEXT,\
                 old_image TEXT, new_image TEXT, last_run TEXT)',
+        'create_feedback': 'CREATE TABLE IF NOT EXISTS feedback\
+                (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, \
+                user_id INT, feedback TEXT, date TEXT)',
+        'insert_feedback': 'INSERT INTO feedback (user_id, feedback, date)'
+        ' VALUES (?, ?, ?)',
+        'get_all_feedback': 'SELECT * FROM feedback',
         'insert_user': 'INSERT INTO users (telegram_user_id, '
         'first_name, username) VALUES (?, ?, ?)',
         'insert_tracking': 'INSERT INTO tracking (user_id, chat_id,'
@@ -43,6 +50,13 @@ Queries = {
                 user_id INT, chat_id INT, url TEXT, type TEXT,\
                 old_image TEXT, new_image TEXT, last_run TEXT,\
                 PRIMARY KEY (id))',
+        'create_feedback': 'CREATE TABLE IF NOT EXISTS feedback\
+                (id INT NOT NULL AUTO_INCREMENT, \
+                user_id INT, feedback TEXT, date TEXT,\
+                PRIMARY KEY (id))',
+        'insert_feedback': 'INSERT INTO feedback (user_id, feedback, date)'
+        ' VALUES (%s, %s, %s)',
+        'get_all_feedback': 'SELECT * FROM feedback',
         'insert_user': 'INSERT INTO users (telegram_user_id, first_name, '
         'username) VALUES (%s, %s, %s)',
         'insert_tracking': 'INSERT INTO tracking (user_id, chat_id, url, type)'
@@ -72,6 +86,7 @@ class DBHelper:
     def _create_tables(self):
         self._execute_(Queries[self.db_type]['create_users'])
         self._execute_(Queries[self.db_type]['create_tracking'])
+        self._execute_(Queries[self.db_type]['create_feedback'])
         self.conn.commit()
 
     def _init_db(self):
@@ -118,6 +133,21 @@ class DBHelper:
             (telegram_user_id, first_name, username),
             type='lastrowid')
         return last_id
+
+    def insert_feedback(self, telegram_user_id, feedback):
+        user = self.fetch_user(telegram_user_id)
+        last_id = self._execute_(
+            Queries[self.db_type]['insert_feedback'],
+            (user[0], feedback, datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+            True,
+            'lastrowid')
+        return last_id
+
+    def list_feedback(self):
+        feedback = self._execute_(
+            Queries[self.db_type]['get_all_feedback'],
+            type='fetchall')
+        return feedback
 
     def fetch_user(self, telegram_user_id):
         user = self._execute_(

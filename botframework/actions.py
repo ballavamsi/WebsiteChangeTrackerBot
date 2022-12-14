@@ -51,12 +51,15 @@ messages = {
     "blank_data": "You don't have anything in this space",
     "bye": "Bye! I hope we can talk again some day.",
     "jobs_started": "Jobs started",
+    "add_feedback": "Please enter your feedback",
+    "feedback_success": "Thank you for your feedback",
 }
 
 
 class Actions:
 
-    ADD, DELETE, TRACK, TRACK_TYPE, REENTER, SCREENSHOT, LIST = range(7)
+    ADD, DELETE, TRACK, TRACK_TYPE, REENTER, SCREENSHOT, LIST, FEEDBACK \
+        = range(8)
 
     def __init__(self):
         self.image_converter = ImageConverter()
@@ -258,6 +261,7 @@ class Actions:
             \n/del - delete tracking url\
             \n/help - help info\
             \n/screenshot - get screenshot of url\
+            \n/feedback - provide feedback to ballavamsi\
             \n/cancel to cancel the current operation")
 
     async def screenshot_begin(self, update: Update, context: CallbackContext):
@@ -300,6 +304,40 @@ class Actions:
         filename = s.capture(track_data[3], track_data[0])
         await update.message.reply_photo(open(filename, 'rb'))
         return ConversationHandler.END
+
+    async def add_feedback_begin(self, update: Update, context):
+        await self.reply_msg(update, messages["add_feedback"])
+        return self.FEEDBACK
+
+    async def add_feedback(self, update: Update, context: CallbackContext):
+
+        if await self.commandsHandler(update, context) is not None:
+            return ConversationHandler.END
+
+        self._db.insert_feedback(update.message.from_user.id,
+                                 update.message.text)
+        await self.reply_msg(update, messages["feedback_success"])
+        return ConversationHandler.END
+
+    async def list_feedbacks(self, update: Update, context: CallbackContext):
+        if await self.commandsHandler(update, context) is not None:
+            return ConversationHandler.END
+
+        if str(update.message.from_user.id) not in ADMIN_USERS:
+            return ConversationHandler.END
+
+        feedbacks = self._db.list_feedback()
+        feedbacks_list = ""
+        for feedback in feedbacks:
+            feedback_user = self._db.fetch_user(feedback[1])
+            feedbacks_list = \
+                feedbacks_list + f"User: " + \
+                f"{feedback_user[2]}" + \
+                f"\n-> Feedback: {feedback[2]}\n" + \
+                f"-> Date: {feedback[3]}\n"
+        await self.reply_msg(update,
+                             feedbacks_list,
+                             disable_web_page_preview=True)
 
     # JOBS RELATED
     async def remove_job_if_exists(self, name: str, context: CallbackContext):

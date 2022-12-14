@@ -75,14 +75,26 @@ class Bot:
             allow_reentry=True
         )
 
+        feedback_conv_handler = ConversationHandler(
+            entry_points=[CommandHandler("feedback",
+                                         action.add_feedback_begin)],
+            states={
+                action.FEEDBACK: [MessageHandler(filters.TEXT,
+                                                 action.add_feedback)],
+                action.REENTER: [MessageHandler(filters.TEXT,
+                                                action.add_feedback_begin)],
+            },
+            fallbacks=[CommandHandler("cancel", action.cancel)],
+            allow_reentry=True
+        )
+
         app.add_handler(conv_handler)
         app.add_handler(add_conv_handler)
         app.add_handler(del_conv_handler)
         app.add_handler(screenshot_conv_handler)
+        app.add_handler(feedback_conv_handler)
         app.add_handler(CommandHandler("list", action.list_tracking))
         app.add_handler(CommandHandler("help", action.help_info))
         app.add_handler(CommandHandler("beginjobs", action.begin_jobs))
+        app.add_handler(CommandHandler("feedbacks", action.list_feedbacks))
         app.run_polling()
-
-        if not os.path.exists("data"):
-            os.makedirs("data")
