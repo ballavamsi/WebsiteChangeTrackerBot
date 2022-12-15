@@ -76,6 +76,8 @@ minutes_options = {
     "1day": 1440
     }
 
+rev_minutes_options = {v: k for k, v in minutes_options.items()}
+
 
 class Actions:
 
@@ -167,7 +169,7 @@ class Actions:
         list_urls_msg = messages["del_id"]
         for url in urls:
             list_urls_msg += f"\nID: {url[0]}\n-> URL: {url[3]}" + \
-                f"\n-> Capture Type: {url[4]}"
+                f"\n-> Capture Type: {url[4]}\n"
         await self.reply_msg(update,
                              list_urls_msg,
                              disable_web_page_preview=True)
@@ -298,11 +300,12 @@ class Actions:
         else:
             await self.reply_msg(update, messages["list_display"])
             urls_list = ""
+
             for url in urls:
                 urls_list = urls_list + f"ID: {url[0]}\n-> URL: {url[3]}" + \
-                                f"\n-> Capture Type: {url[4]}" + \
-                                f"\n-> Interval: {url[8]} minutes" + \
-                                f"\n-> Last Run: {url[9]}\n"
+                            f"\n-> Capture Type: {url[4]}" + \
+                            f"\n-> Interval: {rev_minutes_options[url[8]]}" + \
+                            f"\n-> Last Run: {url[9]}\n\n"
             await self.reply_msg(update,
                                  urls_list,
                                  disable_web_page_preview=True)
@@ -335,7 +338,7 @@ class Actions:
         list_urls_msg = messages["instant_compare"]
         for url in urls:
             list_urls_msg = list_urls_msg + f"\nID: {url[0]}\n-> URL: " + \
-                f"{url[3]}\n-> Capture Type: {url[4]}"
+                f"{url[3]}\n-> Capture Type: {url[4]}\n"
         await self.reply_msg(update,
                              list_urls_msg,
                              disable_web_page_preview=True)
@@ -381,7 +384,7 @@ class Actions:
         for url in urls:
             if url[4] == "screenshot":
                 list_urls_msg = list_urls_msg + f"\nID: {url[0]}\n-> URL: " + \
-                    f"{url[3]}\n-> Capture Type: {url[4]}"
+                    f"{url[3]}\n-> Capture Type: {url[4]}\n"
         await self.reply_msg(update,
                              list_urls_msg,
                              disable_web_page_preview=True)
