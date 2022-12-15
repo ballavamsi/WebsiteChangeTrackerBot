@@ -8,6 +8,7 @@ import validators
 import os
 import requests
 from bs4 import BeautifulSoup
+from datetime import datetime
 import pdb
 
 from helpers.imageconverter import ImageConverter
@@ -26,7 +27,7 @@ messages = {
     "add_fail": "Tracking failed",
     "del": "Please enter the url you want to stop tracking",
     "del_id": "Please enter the ID of the url you want to stop tracking",
-    "del_success": "Tracking stopped %s",
+    "del_success": "Tracking stopped for %s",
     "del_fail": "Tracking stop failed",
     "list": "Please select the url you want to track",
     "list_display": "Tracking urls",
@@ -41,6 +42,8 @@ messages = {
     " for %s",
     "screenshot_taken": "Here is the screenshot of %s",
     "screenshot_once": "Taking screenshot once",
+    "screenshot_nochange": "No change in screenshot for %s",
+    "api_nochange": "No change in api response for %s",
     "api_response": "API response captured\n%s",
     "api_error": "We didn't receive 200 from API - %s",
     "api_fail": "Failed to capture API response for %s",
@@ -48,6 +51,9 @@ messages = {
     "track_type": "Please select the capture type to compare from "
     "options below",
     "track_type_fail": "Invalid type",
+    "select_interval": "Please select the interval to check for changes",
+    "invalid_interval": "Invalid interval",
+    "default_interval": "Default interval set to 60 minutes",
     "invalid_url": "Invalid url",
     "invalid_type": "Invalid type",
     "invalid_id": "Invalid id",
@@ -55,16 +61,26 @@ messages = {
     "cancel": "Cancelled",
     "blank_data": "You don't have anything in this space",
     "bye": "Bye! I hope we can talk again some day.",
-    "jobs_started": "Jobs started",
+    "jobs_started": "%s jobs started",
+    "jobs_stopped": "%s jobs stopped",
     "add_feedback": "Please enter your feedback",
     "feedback_success": "Thank you for your feedback",
+    "instant_compare": "Please enter the ID of url you want to compare",
 }
+
+minutes_options = {
+    "15min": 15,
+    "30min": 30,
+    "60min": 60,
+    "12hrs": 720,
+    "1day": 1440
+    }
 
 
 class Actions:
 
-    ADD, DELETE, TRACK, TRACK_TYPE, REENTER, SCREENSHOT, LIST, FEEDBACK \
-        = range(8)
+    ADD, DELETE, TRACK, TRACK_TYPE, REENTER, SCREENSHOT, LIST, FEEDBACK,\
+        INSTANT_COMPARE, INTERVAL = range(10)
 
     def __init__(self):
         self.image_converter = ImageConverter()
@@ -192,11 +208,16 @@ class Actions:
         await self.reply_msg(update, messages["del_success"] % track_data[3])
         return ConversationHandler.END
 
-    async def set_tracking_type(self, update: Update,
-                                context: CallbackContext):
+    async def set_interval(self, update: Update, context: CallbackContext):
         if await self.commandsHandler(update, context) is not None:
             return ConversationHandler.END
-        context.user_data['type'] = update.message.text
+        context.user_data['interval'] = update.message.text
+
+        if not context.user_data['interval'] in minutes_options.keys():
+            await self.reply_msg(update, messages["invalid_interval"])
+            await self.reply_msg(update, messages["default_interval"])
+            context.user_data['interval'] = "60min"
+
         new_id = await self.add_tracking_to_db(update, context)
         track_data = self._db.fetch_tracking(new_id)
 
@@ -212,19 +233,14 @@ class Actions:
             )
             context.job_queue.run_repeating(
                 self.check_api_and_compare,
-                DEFAULT_JOBS_RUN_TIME,
+                timedelta(
+                 minutes=minutes_options[context.user_data['interval']]),
                 chat_id=update.effective_message.chat_id,
                 name=str(new_id),
                 context=track_data)
 
         if context.user_data['type'] == 'screenshot':
             await self.reply_msg(update, "Taking screenshot once")
-            context.job_queue.run_repeating(
-                self.take_screenshot_and_compare,
-                DEFAULT_JOBS_RUN_TIME,
-                chat_id=update.effective_message.chat_id,
-                name=str(new_id),
-                context=track_data)
             context.job_queue.run_once(
                 self.take_screenshot_once,
                 2,
@@ -233,14 +249,37 @@ class Actions:
                 context=track_data
             )
 
+            context.job_queue.run_repeating(
+                self.take_screenshot_and_compare,
+                timedelta(
+                 minutes=minutes_options[context.user_data['interval']]),
+                chat_id=update.effective_message.chat_id,
+                name=str(new_id),
+                context=track_data)
+
         return ConversationHandler.END
+
+    async def set_tracking_type(self, update: Update,
+                                context: CallbackContext):
+        if await self.commandsHandler(update, context) is not None:
+            return ConversationHandler.END
+        context.user_data['type'] = update.message.text
+
+        await self.reply_msg(update,
+                             messages["select_interval"],
+                             reply_markup=ReplyKeyboardMarkup(
+                                [list(minutes_options.keys())],
+                                one_time_keyboard=True))
+
+        return self.INTERVAL
 
     async def add_tracking_to_db(self, update, context):
         new_id = self._db.insert_tracking(
                     update.message.from_user.id,
                     update.effective_message.chat_id,
                     context.user_data['url'],
-                    context.user_data['type'])
+                    context.user_data['type'],
+                    minutes_options[context.user_data['interval']])
         logger.info("Added new tracking with id %s", new_id)
         await self.reply_msg(
                 update,
@@ -261,7 +300,9 @@ class Actions:
             urls_list = ""
             for url in urls:
                 urls_list = urls_list + f"ID: {url[0]}\n-> URL: {url[3]}" + \
-                                f"\n-> Capture Type: {url[4]}\n"
+                                f"\n-> Capture Type: {url[4]}" + \
+                                f"\n-> Interval: {url[8]} minutes" + \
+                                f"\n-> Last Run: {url[9]}\n"
             await self.reply_msg(update,
                                  urls_list,
                                  disable_web_page_preview=True)
@@ -284,15 +325,63 @@ class Actions:
             \n/del - delete tracking url\
             \n/help - help info\
             \n/screenshot - get screenshot of url\
+            \n/compare - instantly compare\
             \n/feedback - provide feedback to ballavamsi\
             \n/cancel to cancel the current operation")
+
+    async def instant_compare_begin(self, update: Update,
+                                    context: CallbackContext):
+        urls = self._db.list_tracking(update.message.from_user.id)
+        list_urls_msg = messages["instant_compare"]
+        for url in urls:
+            list_urls_msg = list_urls_msg + f"\nID: {url[0]}\n-> URL: " + \
+                f"{url[3]}\n-> Capture Type: {url[4]}"
+        await self.reply_msg(update,
+                             list_urls_msg,
+                             disable_web_page_preview=True)
+        return self.INSTANT_COMPARE
+
+    async def instant_compare(self, update: Update, context: CallbackContext):
+
+        if await self.commandsHandler(update, context) is not None:
+            return ConversationHandler.END
+
+        track_data = self._db.fetch_tracking(update.message.text)
+        if track_data is None:
+            await self.reply_msg(update, messages["invalid_id"])
+            return ConversationHandler.END
+
+        track_user = self._db.fetch_user(update.message.from_user.id)
+        if track_data[1] != track_user[0]:
+            await self.reply_msg(update, messages["invalid_id"])
+            return ConversationHandler.END
+
+        await self.reply_msg(update, "Instant Compare started")
+        if track_data[4] == "api":
+            context.job_queue.run_once(
+                self.check_api_and_compare,
+                2,
+                chat_id=update.effective_message.chat_id,
+                name='instant_' + str(track_data[0]),
+                context=track_data
+            )
+        if track_data[4] == "screenshot":
+            context.job_queue.run_once(
+                self.take_screenshot_and_compare,
+                2,
+                chat_id=update.effective_message.chat_id,
+                name='instant_' + str(track_data[0]),
+                context=track_data
+            )
+        return ConversationHandler.END
 
     async def screenshot_begin(self, update: Update, context: CallbackContext):
         urls = self._db.list_tracking(update.message.from_user.id)
         list_urls_msg = messages["screenshot_id"]
         for url in urls:
-            list_urls_msg = list_urls_msg + f"\nID: {url[0]}\n-> URL: " + \
-                f"{url[3]}\n-> Capture Type: {url[4]}"
+            if url[4] == "screenshot":
+                list_urls_msg = list_urls_msg + f"\nID: {url[0]}\n-> URL: " + \
+                    f"{url[3]}\n-> Capture Type: {url[4]}"
         await self.reply_msg(update,
                              list_urls_msg,
                              disable_web_page_preview=True)
@@ -383,7 +472,8 @@ class Actions:
 
             await context.bot.send_message(
                 chat_id=track_data[2],
-                text=f"{messages['screenshot_taken']}" % track_data[3])
+                text=f"{messages['screenshot_taken']}" % track_data[3],
+                disable_web_page_preview=True)
 
             await context.bot.send_photo(
                 chat_id=track_data[2],
@@ -391,7 +481,8 @@ class Actions:
         except Exception as e:
             await context.bot.send_message(
                 chat_id=track_data[2],
-                text=f"{messages['screenshot_fail']}" % track_data[3])
+                text=f"{messages['screenshot_fail']}" % track_data[3],
+                disable_web_page_preview=True)
             logger.error(e)
 
     async def take_screenshot_and_compare(self, context: CallbackContext):
@@ -509,6 +600,17 @@ class Actions:
                             track_data[0],
                             'new_image',
                             None)
+            else:
+                if context.job.name.startswith('instant_'):
+                    await context.bot.send_message(
+                        chat_id=track_data[2],
+                        text=messages["screenshot_nochange"] % track_data[3],
+                        disable_web_page_preview=True)
+
+            self._db.update_tracking(
+                track_data[0],
+                'last_run',
+                datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
         except Exception as e:
             logger.error(e)
 
@@ -527,7 +629,8 @@ class Actions:
             new_text = soup.prettify()
             await context.bot.send_message(
                     chat_id=context.job.context[2],
-                    text=messages["api_response"] % context.job.context[3],
+                    text=messages["api_response"] % ""
+                    f"{context.job.context[3]}\n{new_text}",
                     disable_web_page_preview=True)
         except Exception as e:
             logger.error(e)
@@ -580,6 +683,13 @@ class Actions:
                             context.job.context[0],
                             'old_image',
                             new_text)
+                else:
+                    if context.job.name.startswith('instant_'):
+                        await context.bot.send_message(
+                         chat_id=context.job.context[2],
+                         text=messages["api_nochange"] % context.job.
+                         context[3],
+                         disable_web_page_preview=True)
             else:
                 f = open(f"{os.getenv('FILESYSTEM_PATH')}/"
                          f"api_{context.job.context[0]}_old.txt", "w")
@@ -600,21 +710,44 @@ class Actions:
             return
 
         urls = self._db.list_all_tracking()
+        total_jobs = 0
         for url in urls:
             if context.job_queue.get_jobs_by_name(str(url[0])):
                 continue
+
+            datetime_to_run = datetime.strptime(url[7], "%Y-%m-%d %H:%M:%S")
             if url[4] == "api":
                 context.job_queue.run_repeating(
                     self.check_api_and_compare,
-                    DEFAULT_JOBS_RUN_TIME,
+                    timedelta(minutes=url[8]),
+                    first=datetime_to_run,
                     chat_id=url[2],
                     context=url,
                     name=str(url[0]))
             elif url[4] == "screenshot":
                 context.job_queue.run_repeating(
                     self.take_screenshot_and_compare,
-                    DEFAULT_JOBS_RUN_TIME,
+                    timedelta(minutes=url[8]),
+                    first=datetime_to_run,
                     chat_id=url[2],
                     context=url,
                     name=str(url[0]))
-        await self.reply_msg(update, messages["jobs_started"])
+
+            details = context.job_queue.get_jobs_by_name(str(url[0]))
+            logger.info(details)
+
+            total_jobs += 1
+        await self.reply_msg(update, messages["jobs_started"] % total_jobs)
+
+    async def stop_jobs(self, update: Update, context: CallbackContext):
+
+        if str(update.effective_user.id) not in ADMIN_USERS:
+            return
+
+        urls = self._db.list_inactive_tracking()
+        total_jobs = 0
+        for url in urls:
+            if context.job_queue.get_jobs_by_name(str(url[0])):
+                context.job_queue.stop()
+                total_jobs += 1
+        await self.reply_msg(update, messages["jobs_stopped"] % total_jobs)

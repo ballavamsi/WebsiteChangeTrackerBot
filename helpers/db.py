@@ -10,46 +10,58 @@ Queries = {
     'sqlite': {
         'create_users': 'CREATE TABLE IF NOT EXISTS users \
                 (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, \
-                telegram_user_id TEXT, first_name TEXT, username TEXT)',
+                telegram_user_id TEXT, first_name TEXT, username TEXT,\
+                created_date TEXT, status_id INT)',
         'create_tracking': 'CREATE TABLE IF NOT EXISTS tracking\
                 (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, \
                 user_id INT, chat_id INT, url TEXT, type TEXT,\
-                old_image TEXT, new_image TEXT, last_run TEXT)',
+                old_image TEXT, new_image TEXT, created_date TEXT,\
+                m_interval INT, status_id INT, last_run TEXT)',
         'create_feedback': 'CREATE TABLE IF NOT EXISTS feedback\
                 (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, \
                 user_id INT, feedback TEXT, date TEXT)',
         'insert_feedback': 'INSERT INTO feedback (user_id, feedback, date)'
         ' VALUES (?, ?, ?)',
         'get_all_feedback': 'SELECT * FROM feedback',
-        'insert_user': 'INSERT INTO users (telegram_user_id, '
-        'first_name, username) VALUES (?, ?, ?)',
-        'insert_tracking': 'INSERT INTO tracking (user_id, chat_id,'
-        'url, type) VALUES (?, ?, ?, ?)',
+        'insert_user': 'INSERT INTO users (telegram_user_id, first_name, '
+        'username, created_date, status_id) VALUES (?, ?, ?, ?, 1)',
+        'insert_tracking': 'INSERT INTO tracking (user_id, chat_id, url, type,'
+        ' created_date, m_interval, status_id) VALUES (?, ?, ?, ?, ?, ?'
+        ', 1)',
         'get_user': 'SELECT * FROM users WHERE telegram_user_id = ?',
         'get_user_by_id': 'SELECT * FROM users WHERE id = ?',
-        'get_all_tracking': 'SELECT * FROM tracking',
-        'get_tracking': 'SELECT * FROM tracking WHERE user_id = ?',
-        'get_tracking_by_id': 'SELECT * FROM tracking WHERE id = ?',
+        'get_inactive_tracking': 'SELECT * FROM tracking where status_id = 0',
+        'get_all_tracking': 'SELECT * FROM tracking where status_id = 1',
+        'get_tracking': 'SELECT * FROM tracking WHERE user_id = ? '
+        'and status_id = 1',
+        'get_tracking_by_id': 'SELECT * FROM tracking WHERE id = ? '
+        'and status_id = 1',
         'get_tracking_by_url': 'SELECT * FROM tracking WHERE url = ?',
         'update_tracking': 'UPDATE tracking SET old_image = ?, '
         'new_image = ?, last_run = ? WHERE id = ?',
-        'update_tracking_old_image': 'UPDATE tracking SET old_image = ?'
-        ' WHERE id = ?',
-        'update_tracking_new_image': 'UPDATE tracking SET new_image = ?'
-        ' WHERE id = ?',
-        'update_tracking_last_run': 'UPDATE tracking SET last_run = ?'
-        ' WHERE id = ?',
+        'update_tracking_old_image': 'UPDATE tracking SET '
+        'old_image = ? WHERE id = ?',
+        'update_tracking_new_image': 'UPDATE tracking SET '
+        'new_image = ? WHERE id = ?',
+        'update_tracking_last_run': 'UPDATE tracking SET '
+        'last_run = ? WHERE id = ?',
+        'update_tracking_interval': 'UPDATE tracking SET '
+        'm_interval = ? WHERE id = ?',
+        'soft_delete_tracking': 'UPDATE tracking SET '
+        'status_id = 0 where id = ?',
         'delete_tracking': 'DELETE FROM tracking WHERE id = ?'
     },
     'mysql': {
         'create_users': 'CREATE TABLE IF NOT EXISTS users \
                 (id INT NOT NULL AUTO_INCREMENT, \
                 telegram_user_id TEXT, first_name TEXT, username TEXT,\
+                created_date TEXT, status_id INT,\
                 PRIMARY KEY (id))',
         'create_tracking': 'CREATE TABLE IF NOT EXISTS tracking\
                 (id INT NOT NULL AUTO_INCREMENT, \
                 user_id INT, chat_id INT, url TEXT, type TEXT,\
-                old_image TEXT, new_image TEXT, last_run TEXT,\
+                old_image TEXT, new_image TEXT, created_date TEXT,\
+                m_interval INT, last_run TEXT, status_id INT,\
                 PRIMARY KEY (id))',
         'create_feedback': 'CREATE TABLE IF NOT EXISTS feedback\
                 (id INT NOT NULL AUTO_INCREMENT, \
@@ -59,14 +71,18 @@ Queries = {
         ' VALUES (%s, %s, %s)',
         'get_all_feedback': 'SELECT * FROM feedback',
         'insert_user': 'INSERT INTO users (telegram_user_id, first_name, '
-        'username) VALUES (%s, %s, %s)',
-        'insert_tracking': 'INSERT INTO tracking (user_id, chat_id, url, type)'
-        ' VALUES (%s, %s, %s, %s)',
+        'username, created_date, status_id) VALUES (%s, %s, %s, %s, 1)',
+        'insert_tracking': 'INSERT INTO tracking (user_id, chat_id, url, type,'
+        ' created_date, m_interval, status_id) VALUES (%s, %s, %s, %s, %s, %s'
+        ', 1)',
         'get_user': 'SELECT * FROM users WHERE telegram_user_id = %s',
         'get_user_by_id': 'SELECT * FROM users WHERE id = %s',
-        'get_all_tracking': 'SELECT * FROM tracking',
-        'get_tracking': 'SELECT * FROM tracking WHERE user_id = %s',
-        'get_tracking_by_id': 'SELECT * FROM tracking WHERE id = %s',
+        'get_all_tracking': 'SELECT * FROM tracking where status_id = 1',
+        'get_inactive_tracking': 'SELECT * FROM tracking where status_id = 0',
+        'get_tracking': 'SELECT * FROM tracking WHERE user_id = %s '
+        'and status_id = 1',
+        'get_tracking_by_id': 'SELECT * FROM tracking WHERE id = %s '
+        'and status_id = 1',
         'get_tracking_by_url': 'SELECT * FROM tracking WHERE url = %s',
         'update_tracking': 'UPDATE tracking SET old_image = %s, '
         'new_image = %s, last_run = %s WHERE id = %s',
@@ -76,6 +92,10 @@ Queries = {
         'new_image = %s WHERE id = %s',
         'update_tracking_last_run': 'UPDATE tracking SET '
         'last_run = %s WHERE id = %s',
+        'update_tracking_interval': 'UPDATE tracking SET '
+        'm_interval = %s WHERE id = %s',
+        'soft_delete_tracking': 'UPDATE tracking SET '
+        'status_id = 0 where id = %s',
         'delete_tracking': 'DELETE FROM tracking WHERE id = %s'
     }
 }
@@ -132,7 +152,9 @@ class DBHelper:
     def insert_user(self, telegram_user_id, first_name, username):
         last_id = self._execute_(
             Queries[self.db_type]['insert_user'],
-            (telegram_user_id, first_name, username),
+            (telegram_user_id, first_name, username,
+             datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')),
+            True,
             type='lastrowid')
         return last_id
 
@@ -140,7 +162,8 @@ class DBHelper:
         user = self.fetch_user(telegram_user_id)
         last_id = self._execute_(
             Queries[self.db_type]['insert_feedback'],
-            (user[0], feedback, datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+            (user[0], feedback,
+             datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')),
             True,
             'lastrowid')
         return last_id
@@ -150,7 +173,7 @@ class DBHelper:
             Queries[self.db_type]['get_all_feedback'],
             type='fetchall')
         return feedback
-    
+
     def fetch_user_by_id(self, user_id):
         user = self._execute_(
                         Queries[self.db_type]['get_user_by_id'],
@@ -165,11 +188,15 @@ class DBHelper:
                         type='fetchone')
         return user
 
-    def insert_tracking(self, telegram_user_id, chat_id, url, type_of_compare):
+    def insert_tracking(self, telegram_user_id, chat_id, url,
+                        type_of_compare,
+                        interval=60):
         user = self.fetch_user(telegram_user_id)
         last_id = self._execute_(
                         Queries[self.db_type]['insert_tracking'],
-                        (user[0], chat_id, url, type_of_compare),
+                        (user[0], chat_id, url, type_of_compare,
+                         datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+                         interval),
                         True,
                         'lastrowid')
         return last_id
@@ -190,6 +217,11 @@ class DBHelper:
                 Queries[self.db_type]['update_tracking_last_run'],
                 (data, id),
                 True)
+        elif column == 'interval':
+            self._execute_(
+                Queries[self.db_type]['update_tracking_interval'],
+                (data, id),
+                True)
 
     def fetch_tracking(self, id):
         track = self._execute_(Queries[self.db_type]['get_tracking_by_id'],
@@ -198,7 +230,8 @@ class DBHelper:
         return track
 
     def delete_tracking(self, id):
-        self._execute_(Queries[self.db_type]['delete_tracking'], (id,), True)
+        self._execute_(Queries[self.db_type]['soft_delete_tracking'], (id,),
+                       True)
         self.conn.commit()
 
     def list_tracking(self, telegram_user_id):
@@ -217,3 +250,9 @@ class DBHelper:
         all_list = self._execute_(Queries[self.db_type]['get_all_tracking'],
                                   type='fetchall')
         return all_list
+
+    def list_inactive_tracking(self):
+        inactive_list = self._execute_(
+            Queries[self.db_type]['get_inactive_tracking'],
+            type='fetchall')
+        return inactive_list

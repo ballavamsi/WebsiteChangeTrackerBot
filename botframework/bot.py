@@ -23,6 +23,8 @@ class Bot:
                                               action.add_tracking)],
                 action.TRACK_TYPE: [MessageHandler(filters.TEXT,
                                                    action.set_tracking_type)],
+                action.INTERVAL: [MessageHandler(filters.TEXT,
+                                                 action.set_interval)],
                 action.LIST: [MessageHandler(filters.TEXT,
                                              action.list_tracking)],
                 action.REENTER: [MessageHandler(filters.TEXT,
@@ -38,8 +40,8 @@ class Bot:
                                               action.add_tracking)],
                 action.TRACK_TYPE: [MessageHandler(filters.TEXT,
                                                    action.set_tracking_type)],
-                action.LIST: [MessageHandler(filters.TEXT,
-                                             action.list_tracking)],
+                action.INTERVAL: [MessageHandler(filters.TEXT,
+                                                 action.set_interval)],
                 action.REENTER: [MessageHandler(filters.TEXT,
                                                 action.add_tracking_begin)],
             },
@@ -51,8 +53,6 @@ class Bot:
             states={
                 action.DELETE: [MessageHandler(filters.TEXT,
                                                action.stop_tracking)],
-                action.LIST: [MessageHandler(filters.TEXT,
-                                             action.list_tracking)],
                 action.REENTER: [MessageHandler(filters.TEXT,
                                                 action.stop_tracking_begin)],
             },
@@ -66,10 +66,22 @@ class Bot:
             states={
                 action.SCREENSHOT: [MessageHandler(filters.TEXT,
                                                    action.screenshot)],
-                action.LIST: [MessageHandler(filters.TEXT,
-                                             action.list_tracking)],
                 action.REENTER: [MessageHandler(filters.TEXT,
                                                 action.screenshot_begin)],
+            },
+            fallbacks=[CommandHandler("cancel", action.cancel)],
+            allow_reentry=True
+        )
+
+        compare_conv_handler = ConversationHandler(
+            entry_points=[CommandHandler("compare",
+                                         action.instant_compare_begin)],
+            states={
+                action.INSTANT_COMPARE: [MessageHandler(
+                    filters.TEXT,
+                    action.instant_compare)],
+                action.REENTER: [MessageHandler(filters.TEXT,
+                                                action.instant_compare_begin)],
             },
             fallbacks=[CommandHandler("cancel", action.cancel)],
             allow_reentry=True
@@ -92,9 +104,11 @@ class Bot:
         app.add_handler(add_conv_handler)
         app.add_handler(del_conv_handler)
         app.add_handler(screenshot_conv_handler)
+        app.add_handler(compare_conv_handler)
         app.add_handler(feedback_conv_handler)
         app.add_handler(CommandHandler("list", action.list_tracking))
         app.add_handler(CommandHandler("help", action.help_info))
         app.add_handler(CommandHandler("beginjobs", action.begin_jobs))
+        app.add_handler(CommandHandler("stopjobs", action.stop_jobs))
         app.add_handler(CommandHandler("feedbacks", action.list_feedbacks))
         app.run_polling()
