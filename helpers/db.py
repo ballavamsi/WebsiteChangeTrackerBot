@@ -7,50 +7,6 @@ from .constants import DB_FILE
 
 
 Queries = {
-    'sqlite': {
-        'create_users': 'CREATE TABLE IF NOT EXISTS users \
-                (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, \
-                telegram_user_id TEXT, first_name TEXT, username TEXT,\
-                created_date TEXT, status_id INT)',
-        'create_tracking': 'CREATE TABLE IF NOT EXISTS tracking\
-                (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, \
-                user_id INT, chat_id INT, url TEXT, type TEXT,\
-                old_image TEXT, new_image TEXT, created_date TEXT,\
-                m_interval INT, status_id INT, last_run TEXT)',
-        'create_feedback': 'CREATE TABLE IF NOT EXISTS feedback\
-                (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, \
-                user_id INT, feedback TEXT, date TEXT)',
-        'insert_feedback': 'INSERT INTO feedback (user_id, feedback, date)'
-        ' VALUES (?, ?, ?)',
-        'get_all_feedback': 'SELECT * FROM feedback',
-        'insert_user': 'INSERT INTO users (telegram_user_id, first_name, '
-        'username, created_date, status_id) VALUES (?, ?, ?, ?, 1)',
-        'insert_tracking': 'INSERT INTO tracking (user_id, chat_id, url, type,'
-        ' created_date, m_interval, status_id) VALUES (?, ?, ?, ?, ?, ?'
-        ', 1)',
-        'get_user': 'SELECT * FROM users WHERE telegram_user_id = ?',
-        'get_user_by_id': 'SELECT * FROM users WHERE id = ?',
-        'get_inactive_tracking': 'SELECT * FROM tracking where status_id = 0',
-        'get_all_tracking': 'SELECT * FROM tracking where status_id = 1',
-        'get_tracking': 'SELECT * FROM tracking WHERE user_id = ? '
-        'and status_id = 1',
-        'get_tracking_by_id': 'SELECT * FROM tracking WHERE id = ? '
-        'and status_id = 1',
-        'get_tracking_by_url': 'SELECT * FROM tracking WHERE url = ?',
-        'update_tracking': 'UPDATE tracking SET old_image = ?, '
-        'new_image = ?, last_run = ? WHERE id = ?',
-        'update_tracking_old_image': 'UPDATE tracking SET '
-        'old_image = ? WHERE id = ?',
-        'update_tracking_new_image': 'UPDATE tracking SET '
-        'new_image = ? WHERE id = ?',
-        'update_tracking_last_run': 'UPDATE tracking SET '
-        'last_run = ? WHERE id = ?',
-        'update_tracking_interval': 'UPDATE tracking SET '
-        'm_interval = ? WHERE id = ?',
-        'soft_delete_tracking': 'UPDATE tracking SET '
-        'status_id = 0 where id = ?',
-        'delete_tracking': 'DELETE FROM tracking WHERE id = ?'
-    },
     'mysql': {
         'create_users': 'CREATE TABLE IF NOT EXISTS users \
                 (id INT NOT NULL AUTO_INCREMENT, \
@@ -67,6 +23,18 @@ Queries = {
                 (id INT NOT NULL AUTO_INCREMENT, \
                 user_id INT, feedback TEXT, date TEXT,\
                 PRIMARY KEY (id))',
+        'create_compare_type': 'CREATE TABLE IF NOT EXISTS `compare_types` (\
+                `id` INT NOT NULL AUTO_INCREMENT,\
+                `name` VARCHAR(100),\
+                `is_active` INT DEFAULT 1,\
+                PRIMARY KEY (`id`));',
+        'create_minutue_options': 'CREATE TABLE IF NOT EXISTS `minute_options`\
+                (`id` INT NOT NULL AUTO_INCREMENT,\
+                `name` VARCHAR(100),\
+                `number_of_min` INT,\
+                `display_order` INT DEFAULT 1,\
+                `is_active` INT DEFAULT 1,\
+                PRIMARY KEY (`id`));',
         'insert_feedback': 'INSERT INTO feedback (user_id, feedback, date)'
         ' VALUES (%s, %s, %s)',
         'get_all_feedback': 'SELECT * FROM feedback',
@@ -76,6 +44,8 @@ Queries = {
         ' created_date, m_interval, status_id) VALUES (%s, %s, %s, %s, %s, %s'
         ', 1)',
         'get_user': 'SELECT * FROM users WHERE telegram_user_id = %s',
+        'get_all_users': 'SELECT * FROM users',
+        'get_all_users_count': 'SELECT COUNT(*) FROM users',
         'get_user_by_id': 'SELECT * FROM users WHERE id = %s',
         'get_all_tracking': 'SELECT * FROM tracking where status_id = 1',
         'get_inactive_tracking': 'SELECT * FROM tracking where status_id = 0',
@@ -96,7 +66,15 @@ Queries = {
         'm_interval = %s WHERE id = %s',
         'soft_delete_tracking': 'UPDATE tracking SET '
         'status_id = 0 where id = %s',
-        'delete_tracking': 'DELETE FROM tracking WHERE id = %s'
+        'delete_tracking': 'DELETE FROM tracking WHERE id = %s',
+        'get_compare_types': 'SELECT * FROM compare_types'
+        ' WHERE is_active = 1',
+        'get_minute_options': 'SELECT * FROM minute_options'
+        ' WHERE is_active = 1 order by display_order asc',
+        'get_minute_option_by_min': 'SELECT * FROM minute_options'
+        ' WHERE number_of_min = %s',
+        'get_minute_option_by_name': 'SELECT * FROM minute_options'
+        ' WHERE name = %s and is_active = 1',
     }
 }
 
@@ -188,6 +166,24 @@ class DBHelper:
                         type='fetchone')
         return user
 
+    def fetch_users(self):
+        users = self._execute_(
+                        Queries[self.db_type]['get_all_users'],
+                        type='fetchall')
+        return users
+
+    def fetch_users_count(self):
+        users = self._execute_(
+                        Queries[self.db_type]['get_users_count'],
+                        type='fetchone')
+        return users[0]
+
+    def fetch_compare_types(self):
+        compare_types = self._execute_(
+                        Queries[self.db_type]['get_compare_types'],
+                        type='fetchall')
+        return compare_types
+
     def insert_tracking(self, telegram_user_id, chat_id, url,
                         type_of_compare,
                         interval=60):
@@ -256,3 +252,23 @@ class DBHelper:
             Queries[self.db_type]['get_inactive_tracking'],
             type='fetchall')
         return inactive_list
+
+    def list_minute_options(self):
+        minutes = self._execute_(
+            Queries[self.db_type]['get_minute_options'],
+            type='fetchall')
+        return minutes
+
+    def fetch_minute_option_by_name(self, name):
+        minute = self._execute_(
+            Queries[self.db_type]['get_minute_option_by_name'],
+            (name,),
+            type='fetchone')
+        return minute
+
+    def fetch_minute_option_by_min(self, id):
+        minute = self._execute_(
+            Queries[self.db_type]['get_minute_option_by_min'],
+            (id,),
+            type='fetchone')
+        return minute

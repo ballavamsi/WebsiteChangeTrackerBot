@@ -2,7 +2,7 @@ from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import (
     ConversationHandler,
     CallbackContext,
-    ContextTypes
+    JobQueue
 )
 import validators
 import os
@@ -17,7 +17,6 @@ from helpers.imagecompare import ImageComparer
 from helpers.logging import logger
 from helpers.db import DBHelper
 from botframework.constants import *
-import difflib
 
 messages = {
     "start": "Hello %s",
@@ -49,7 +48,9 @@ messages = {
     "api_fail": "Failed to capture API response for %s",
     "api_change": "We have identified a change in the api response for %s",
     "track_type": "Please select the capture type to compare from "
-    "options below",
+    "options below\n\n"
+    "SCREENSHOT: to capture screenshot of (suggested)\n"
+    "API: to capture JSON/XML GET api response (advanced)",
     "track_type_fail": "Invalid type",
     "select_interval": "Please select the interval to check for changes",
     "invalid_interval": "Invalid interval",
@@ -66,23 +67,21 @@ messages = {
     "add_feedback": "Please enter your feedback",
     "feedback_success": "Thank you for your feedback",
     "instant_compare": "Please enter the ID of url you want to compare",
+    "admin_commands": "Please select the admin command from options below\n"
+    "/users: To list all users\n"
+    "/users_count: To get the count of users\n"
+    "/feedbacks: To list all feedbacks\n"
+    "/stop_jobs: To stop all jobs\n"
+    "/begin_jobs: To start all jobs\n",
+    "invalid_command": "Invalid command",
 }
-
-minutes_options = {
-    "15min": 15,
-    "30min": 30,
-    "60min": 60,
-    "12hrs": 720,
-    "1day": 1440
-    }
-
-rev_minutes_options = {v: k for k, v in minutes_options.items()}
 
 
 class Actions:
 
     ADD, DELETE, TRACK, TRACK_TYPE, REENTER, SCREENSHOT, LIST, FEEDBACK,\
-        INSTANT_COMPARE, INTERVAL = range(10)
+        INSTANT_COMPARE, INTERVAL, BEGIN_JOBS, STOP_JOBS,\
+        LIST_FEEDBACKS, LIST_USERS, USERS_COUNT, ADMIN_COMMANDS = range(16)
 
     def __init__(self):
         self.image_converter = ImageConverter()
@@ -153,11 +152,26 @@ class Actions:
             await self.reply_msg(update, messages["invalid_url"])
             return self.REENTER
 
+        compare_types_res = self._db.fetch_compare_types()
+        compare_types = [x[1] for x in compare_types_res]
         context.user_data['url'] = update.message.text
+
+        minutes_options_res = self._db.list_minute_options()
+        minutes_options = [x[1] for x in minutes_options_res]
+
+        if len(compare_types) == 1:
+            context.user_data['type'] = compare_types[0]
+            await self.reply_msg(update,
+                                 messages["select_interval"],
+                                 reply_markup=ReplyKeyboardMarkup(
+                                  [minutes_options],
+                                  one_time_keyboard=True))
+            return self.INTERVAL
+
         await self.reply_msg(update,
                              messages["track_type"],
                              reply_markup=ReplyKeyboardMarkup(
-                                [["screenshot", "api"]],
+                                [compare_types],
                                 one_time_keyboard=True))
 
         return self.TRACK_TYPE
@@ -206,7 +220,7 @@ class Actions:
                           f"screenshot_{track_data[0]}_new.png")
 
         self._db.delete_tracking(update.message.text)
-        self.remove_job_if_exists(str(track_data[0]), context)
+        await self.remove_job_if_exists(str(track_data[0]), context)
         await self.reply_msg(update, messages["del_success"] % track_data[3])
         return ConversationHandler.END
 
@@ -215,16 +229,21 @@ class Actions:
             return ConversationHandler.END
         context.user_data['interval'] = update.message.text
 
-        if not context.user_data['interval'] in minutes_options.keys():
+        minutes_options_res = self._db.fetch_minute_option_by_name(
+            context.user_data['interval'])
+        if minutes_options_res is None:
             await self.reply_msg(update, messages["invalid_interval"])
             await self.reply_msg(update, messages["default_interval"])
             context.user_data['interval'] = "60min"
+            minutes_options_res = self._db.fetch_minute_option_by_name(
+                context.user_data['interval'])
 
+        context.user_data['interval_min'] = minutes_options_res[2]
         new_id = await self.add_tracking_to_db(update, context)
         track_data = self._db.fetch_tracking(new_id)
 
         # add jobs to queue
-        if context.user_data['type'] == "api":
+        if context.user_data['type'].lower() == "api":
             await self.reply_msg(update, "Calling API once")
             context.job_queue.run_once(
                 self.call_api_once,
@@ -236,12 +255,12 @@ class Actions:
             context.job_queue.run_repeating(
                 self.check_api_and_compare,
                 timedelta(
-                 minutes=minutes_options[context.user_data['interval']]),
+                 minutes=context.user_data['interval_min']),
                 chat_id=update.effective_message.chat_id,
                 name=str(new_id),
                 context=track_data)
 
-        if context.user_data['type'] == 'screenshot':
+        if context.user_data['type'].lower() == 'screenshot':
             await self.reply_msg(update, "Taking screenshot once")
             context.job_queue.run_once(
                 self.take_screenshot_once,
@@ -254,7 +273,7 @@ class Actions:
             context.job_queue.run_repeating(
                 self.take_screenshot_and_compare,
                 timedelta(
-                 minutes=minutes_options[context.user_data['interval']]),
+                 minutes=context.user_data['interval_min']),
                 chat_id=update.effective_message.chat_id,
                 name=str(new_id),
                 context=track_data)
@@ -267,10 +286,12 @@ class Actions:
             return ConversationHandler.END
         context.user_data['type'] = update.message.text
 
+        minutes_options_res = self._db.list_minute_options()
+        minutes_options = [x[1] for x in minutes_options_res]
         await self.reply_msg(update,
                              messages["select_interval"],
                              reply_markup=ReplyKeyboardMarkup(
-                                [list(minutes_options.keys())],
+                                [minutes_options],
                                 one_time_keyboard=True))
 
         return self.INTERVAL
@@ -281,7 +302,7 @@ class Actions:
                     update.effective_message.chat_id,
                     context.user_data['url'],
                     context.user_data['type'],
-                    minutes_options[context.user_data['interval']])
+                    context.user_data['interval_min'])
         logger.info("Added new tracking with id %s", new_id)
         await self.reply_msg(
                 update,
@@ -301,6 +322,8 @@ class Actions:
             await self.reply_msg(update, messages["list_display"])
             urls_list = ""
 
+            minutes_options_res = self._db.list_minute_options()
+            rev_minutes_options = {x[2]: x[1] for x in minutes_options_res}
             for url in urls:
                 urls_list = urls_list + f"ID: {url[0]}\n-> URL: {url[3]}" + \
                             f"\n-> Capture Type: {url[4]}" + \
@@ -360,7 +383,7 @@ class Actions:
             return ConversationHandler.END
 
         await self.reply_msg(update, "Instant Compare started")
-        if track_data[4] == "api":
+        if track_data[4].lower() == "api":
             context.job_queue.run_once(
                 self.check_api_and_compare,
                 2,
@@ -368,7 +391,7 @@ class Actions:
                 name='instant_' + str(track_data[0]),
                 context=track_data
             )
-        if track_data[4] == "screenshot":
+        if track_data[4].lower() == "screenshot":
             context.job_queue.run_once(
                 self.take_screenshot_and_compare,
                 2,
@@ -451,6 +474,9 @@ class Actions:
         feedbacks_list = ""
         for feedback in feedbacks:
             feedback_user = self._db.fetch_user_by_id(feedback[1])
+
+            if feedback_user is None:
+                continue
             feedbacks_list = \
                 feedbacks_list + f"User: " + \
                 f"{feedback_user[2]}" + \
@@ -459,6 +485,67 @@ class Actions:
         await self.reply_msg(update,
                              feedbacks_list,
                              disable_web_page_preview=True)
+        return ConversationHandler.END
+
+    async def list_users(self, update: Update, context: CallbackContext):
+        if await self.commandsHandler(update, context) is not None:
+            return ConversationHandler.END
+
+        if str(update.message.from_user.id) not in ADMIN_USERS:
+            return ConversationHandler.END
+
+        users = self._db.fetch_users()
+        users_list = ""
+        for user in users:
+            users_list = users_list + f"User: {user[2]}\n-> ID: {user[1]}\n"
+        await self.reply_msg(update,
+                             users_list,
+                             disable_web_page_preview=True)
+        return ConversationHandler.END
+
+    async def users_count(self, update: Update, context: CallbackContext):
+        if await self.commandsHandler(update, context) is not None:
+            return ConversationHandler.END
+
+        if str(update.message.from_user.id) not in ADMIN_USERS:
+            return ConversationHandler.END
+
+        users_count = self._db.fetch_users_count()
+        await self.reply_msg(update, f"Total Users: {users_count}")
+        return ConversationHandler.END
+
+    # ADMIN COMMANDS
+    async def admin_commands_begin(self, update: Update,
+                                   context: CallbackContext):
+        if await self.commandsHandler(update, context) is not None:
+            return ConversationHandler.END
+
+        if str(update.message.from_user.id) not in ADMIN_USERS:
+            return ConversationHandler.END
+
+        await self.reply_msg(update, messages["admin_commands"])
+        return self.ADMIN_COMMANDS
+
+    async def admin_commands(self, update: Update, context: CallbackContext):
+        if await self.commandsHandler(update, context) is not None:
+            return ConversationHandler.END
+
+        if str(update.message.from_user.id) not in ADMIN_USERS:
+            return ConversationHandler.END
+
+        await self.reply_msg(update, f"Admin Console: {update.message.text}")
+        if update.message.text == "/users":
+            return await self.list_users(update, context)
+        if update.message.text == "/feedbacks":
+            return await self.list_feedbacks(update, context)
+        if update.message.text == "/users_count":
+            return await self.users_count(update, context)
+        if update.message.text == "/begin_jobs":
+            return await self.begin_jobs(update, context)
+        if update.message.text == "/stop_jobs":
+            return await self.stop_jobs(update, context)
+        await self.reply_msg(update, messages["invalid_command"])
+        return ConversationHandler.END
 
     # JOBS RELATED
     async def remove_job_if_exists(self, name: str, context: CallbackContext):
@@ -466,6 +553,9 @@ class Actions:
         if current_jobs:
             for job in current_jobs:
                 job.schedule_removal()
+                logger.info("Job removed %s" % job.name)
+                return True
+        return False
 
     async def take_screenshot_once(self, context: CallbackContext):
         track_data = context.job.context
@@ -487,8 +577,11 @@ class Actions:
                 text=f"{messages['screenshot_fail']}" % track_data[3],
                 disable_web_page_preview=True)
             logger.error(e)
+        await self.remove_job_if_exists(context.job.name, context)
 
     async def take_screenshot_and_compare(self, context: CallbackContext):
+        if context.job.name.startswith('instant_'):
+            await self.remove_job_if_exists(context.job.name, context)
         try:
             track_data = context.job.context
 
@@ -641,8 +734,11 @@ class Actions:
                     chat_id=context.job.context[2],
                     text=messages["api_fail"] % context.job.context[3],
                     disable_web_page_preview=True)
+        await self.remove_job_if_exists(context.job.name, context)
 
     async def check_api_and_compare(self, context: CallbackContext):
+        if context.job.name.startswith('instant_'):
+            await self.remove_job_if_exists(context.job.name, context)
         try:
             response = requests.get(context.job.context[3])
             if response.status_code != 200:
@@ -711,24 +807,27 @@ class Actions:
 
         if str(update.effective_user.id) not in ADMIN_USERS:
             return
+        total_jobs, _jq = self.create_job_queue_list(context.job_queue)
+        await self.reply_msg(update, messages["jobs_started"] % total_jobs)
 
-        urls = self._db.list_all_tracking()
+    def create_job_queue_list(self, jobs: JobQueue):
         total_jobs = 0
+        urls = self._db.list_all_tracking()
         for url in urls:
-            if context.job_queue.get_jobs_by_name(str(url[0])):
+            if jobs.get_jobs_by_name(str(url[0])):
                 continue
 
             datetime_to_run = datetime.strptime(url[7], "%Y-%m-%d %H:%M:%S")
-            if url[4] == "api":
-                context.job_queue.run_repeating(
+            if url[4].lower() == "api":
+                jobs.run_repeating(
                     self.check_api_and_compare,
                     timedelta(minutes=url[8]),
                     first=datetime_to_run,
                     chat_id=url[2],
                     context=url,
                     name=str(url[0]))
-            elif url[4] == "screenshot":
-                context.job_queue.run_repeating(
+            elif url[4].lower() == "screenshot":
+                jobs.run_repeating(
                     self.take_screenshot_and_compare,
                     timedelta(minutes=url[8]),
                     first=datetime_to_run,
@@ -736,11 +835,10 @@ class Actions:
                     context=url,
                     name=str(url[0]))
 
-            details = context.job_queue.get_jobs_by_name(str(url[0]))
+            details = jobs.get_jobs_by_name(str(url[0]))
             logger.info(details)
-
             total_jobs += 1
-        await self.reply_msg(update, messages["jobs_started"] % total_jobs)
+        return (total_jobs, jobs)
 
     async def stop_jobs(self, update: Update, context: CallbackContext):
 
@@ -750,7 +848,7 @@ class Actions:
         urls = self._db.list_inactive_tracking()
         total_jobs = 0
         for url in urls:
-            if context.job_queue.get_jobs_by_name(str(url[0])):
-                context.job_queue.stop()
+            removed = await self.remove_job_if_exists(str(url[0]), context)
+            if removed:
                 total_jobs += 1
         await self.reply_msg(update, messages["jobs_stopped"] % total_jobs)
