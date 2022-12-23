@@ -86,8 +86,9 @@ class Actions:
     def __init__(self):
         self.image_converter = ImageConverter()
         self._db = DBHelper()
+        self._config = {}
 
-    async def create_user(self, update: Update):
+    async def pre_checks(self, update: Update):
         if self._db.fetch_user(update.message.from_user.id) is None:
             self._db.insert_user(update.message.from_user.id,
                                  update.message.from_user.first_name,
@@ -97,6 +98,10 @@ class Actions:
         else:
             logger.info(f"User {update.message.from_user.id}"
                         f" ({update.message.from_user.username}) exists")
+
+    async def update_configs(self):
+        configs_res = self._db.list_configs()
+        self._config = {x[1]: x[2] for x in configs_res}
 
     async def reply_msg(self, update: Update, *args, **kwargs):
 
@@ -111,7 +116,7 @@ class Actions:
 
     async def commandsHandler(self, update: Update, context: CallbackContext):
 
-        await self.create_user(update)
+        await self.pre_checks(update)
         logger.info(f"Received command {update.message.text} from "
                     f"{update.message.from_user.id} "
                     f"({update.message.from_user.first_name})")
@@ -123,7 +128,7 @@ class Actions:
 
     async def start(self, update: Update, context: CallbackContext):
 
-        await self.create_user(update)
+        await self.pre_checks(update)
 
         if await self.commandsHandler(update, context) is not None:
             return ConversationHandler.END
@@ -142,7 +147,7 @@ class Actions:
 
     async def add_tracking(self, update: Update, context: CallbackContext):
 
-        await self.create_user(update)
+        await self.pre_checks(update)
 
         if await self.commandsHandler(update, context) is not None:
             return ConversationHandler.END
@@ -343,7 +348,7 @@ class Actions:
 
     async def help_info(self, update: Update, context: CallbackContext):
 
-        await self.create_user(update)
+        await self.pre_checks(update)
         await self.reply_msg(update, "You can enter below \
             commands\n/start - start tracking\
             \n/list - list tracking urls\
@@ -449,7 +454,7 @@ class Actions:
 
     async def add_feedback_begin(self, update: Update, context):
 
-        await self.create_user(update)
+        await self.pre_checks(update)
         await self.reply_msg(update, messages["add_feedback"])
         return self.FEEDBACK
 
@@ -560,8 +565,12 @@ class Actions:
     async def take_screenshot_once(self, context: CallbackContext):
         track_data = context.job.context
         try:
+            self.update_configs()
             s = Screenshot(admin_user=str(track_data[2]) in ADMIN_USERS)
-            temp_filename = s.capture(track_data[3], track_data[0])
+            temp_filename = s.capture(
+                                track_data[3],
+                                track_data[0],
+                                self._config['SCREENSHOT_DELAY'])
 
             await context.bot.send_message(
                 chat_id=track_data[2],
@@ -584,10 +593,14 @@ class Actions:
             await self.remove_job_if_exists(context.job.name, context)
         try:
             track_data = context.job.context
-
+            self.update_configs()
             # track_data = self._db.fetch_tracking(track_data[0])
             s = Screenshot(admin_user=str(track_data[2]) in ADMIN_USERS)
-            temp_filename = s.capture(track_data[3], track_data[0])
+            temp_filename = s.capture(
+                                track_data[3],
+                                track_data[0],
+                                self._config['SCREENSHOT_DELAY'])
+
             new_filename = temp_filename.replace('temp', 'new')
             old_filename = temp_filename.replace('temp', 'old')
 

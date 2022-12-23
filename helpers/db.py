@@ -35,6 +35,11 @@ Queries = {
                 `display_order` INT DEFAULT 1,\
                 `is_active` INT DEFAULT 1,\
                 PRIMARY KEY (`id`));',
+        'create_config': 'CREATE TABLE IF NOT EXISTS `configs` (\
+                `id` INT NOT NULL AUTO_INCREMENT,\
+                `env_key` VARCHAR(100),\
+                `env_value` VARCHAR(1000),\
+                PRIMARY KEY (`id`));',
         'insert_feedback': 'INSERT INTO feedback (user_id, feedback, date)'
         ' VALUES (%s, %s, %s)',
         'get_all_feedback': 'SELECT * FROM feedback',
@@ -75,6 +80,7 @@ Queries = {
         ' WHERE number_of_min = %s',
         'get_minute_option_by_name': 'SELECT * FROM minute_options'
         ' WHERE name = %s and is_active = 1',
+        'get_configs': 'SELECT * FROM configs',
     }
 }
 
@@ -258,6 +264,12 @@ class DBHelper:
             Queries[self.db_type]['get_minute_options'],
             type='fetchall')
         return minutes
+
+    def list_configs(self):
+        configs = self._execute_(
+            Queries[self.db_type]['get_configs'],
+            type='fetchall')
+        return configs
 
     def fetch_minute_option_by_name(self, name):
         minute = self._execute_(
