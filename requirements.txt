@@ -14,4 +14,5 @@ numpy
 beautifulsoup4
 selenium
 mysql-connector-python
+asyncio
 #npm -g phantomjs

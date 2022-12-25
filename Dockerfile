@@ -1,10 +1,9 @@
-FROM python:3.8-slim-buster
+FROM python:3.10-slim-bullseye
+RUN apt-get update
+RUN apt-get install ffmpeg libsm6 libxext6 -y
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 COPY . /app
 WORKDIR /app
-RUN pip install -r requirements.txt
 RUN mkdir -p /data
-RUN apt-get update
-RUN apt-get install 'ffmpeg'\
-    'libsm6'\ 
-    'libxext6'  -y
 CMD ["python", "main.py"]
