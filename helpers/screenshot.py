@@ -1,7 +1,7 @@
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
 import os
-import time
+import asyncio
 
 
 class Screenshot:
@@ -60,7 +60,11 @@ class Screenshot:
 
                 options = webdriver.ChromeOptions()
                 options.add_argument('--ignore-ssl-errors=yes')
+
+                options.add_extension(os.path.join(driver_path,
+                                                   'adblocker.crx'))
                 options.add_argument('--ignore-certificate-errors')
+                options.add_argument('--window-size=1920,1080')
 
                 self.driver = webdriver.Remote(
                                command_executor=os.environ.get("SELENIUM_URL"),
@@ -68,20 +72,20 @@ class Screenshot:
 
         if self.browser != "remotechrome":
             self.driver.set_window_position(-10000, 0)
-            self.driver.set_window_size(1440, 900)
+            self.driver.set_window_size(1920, 1080)
         else:
             self.driver.maximize_window()
 
     """
     Capture screenshot of a given url
     """
-    def capture(self, url, task_id, delay=30):
+    async def capture(self, url, task_id, delay=30):
 
         self.driver.get(url)
         # unique filename
         filename = os.path.join(os.getenv("FILESYSTEM_PATH"),
                                 f"screenshot_{task_id}_temp.png")
-        time.sleep(delay)
+        await asyncio.sleep(int(os.getenv("SCREENSHOT_DELAY", 30)))
         self.driver.save_screenshot(filename)
 
         if self.browser == 'remotechrome':

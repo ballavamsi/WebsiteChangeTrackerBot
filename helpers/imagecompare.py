@@ -34,8 +34,8 @@ class ImageComparer:
         # resize the images to make them small in size. A bigger
         # size image may take a significant time
         # more computing power and time
-        original = imutils.resize(original, height=600)
-        new = imutils.resize(new, height=600)
+        # original = imutils.resize(original, height=600)
+        # new = imutils.resize(new, height=600)
         # create a copy of original image so that we can store the
         # difference of 2 images in the same on
         diff = original.copy()

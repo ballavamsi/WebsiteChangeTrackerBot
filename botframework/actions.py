@@ -389,7 +389,7 @@ class Actions:
 
         await self.reply_msg(update, "Instant Compare started")
         if track_data[4].lower() == "api":
-            context.job_queue.run_once(
+            await context.job_queue.run_once(
                 self.check_api_and_compare,
                 2,
                 chat_id=update.effective_message.chat_id,
@@ -397,7 +397,7 @@ class Actions:
                 context=track_data
             )
         if track_data[4].lower() == "screenshot":
-            context.job_queue.run_once(
+            await context.job_queue.run_once(
                 self.take_screenshot_and_compare,
                 2,
                 chat_id=update.effective_message.chat_id,
@@ -410,9 +410,13 @@ class Actions:
         urls = self._db.list_tracking(update.message.from_user.id)
         list_urls_msg = messages["screenshot_id"]
         for url in urls:
-            if url[4] == "screenshot":
+            if url[4].lower() == "screenshot":
                 list_urls_msg = list_urls_msg + f"\nID: {url[0]}\n-> URL: " + \
                     f"{url[3]}\n-> Capture Type: {url[4]}\n"
+        if len(urls) == 0:
+            await self.reply_msg(update, messages["blank_data"])
+            return ConversationHandler.END
+
         await self.reply_msg(update,
                              list_urls_msg,
                              disable_web_page_preview=True)
@@ -438,7 +442,7 @@ class Actions:
             await self.reply_msg(update, messages["invalid_id"])
             return self.REENTER
 
-        if track_data[4] != "screenshot":
+        if track_data[4].lower() != "screenshot":
             await self.reply_msg(update, messages["invalid_type"])
             return self.REENTER
 
@@ -565,21 +569,20 @@ class Actions:
     async def take_screenshot_once(self, context: CallbackContext):
         track_data = context.job.context
         try:
-            self.update_configs()
+            # await self.update_configs()
             s = Screenshot(admin_user=str(track_data[2]) in ADMIN_USERS)
-            temp_filename = s.capture(
+            temp_filename = await s.capture(
                                 track_data[3],
-                                track_data[0],
-                                self._config['SCREENSHOT_DELAY'])
+                                track_data[0])
 
             await context.bot.send_message(
                 chat_id=track_data[2],
                 text=f"{messages['screenshot_taken']}" % track_data[3],
                 disable_web_page_preview=True)
 
-            await context.bot.send_photo(
+            await context.bot.send_document(
                 chat_id=track_data[2],
-                photo=open(temp_filename, 'rb'))
+                document=open(temp_filename, 'rb'))
         except Exception as e:
             await context.bot.send_message(
                 chat_id=track_data[2],
@@ -593,13 +596,12 @@ class Actions:
             await self.remove_job_if_exists(context.job.name, context)
         try:
             track_data = context.job.context
-            self.update_configs()
+            # await self.update_configs()
             # track_data = self._db.fetch_tracking(track_data[0])
             s = Screenshot(admin_user=str(track_data[2]) in ADMIN_USERS)
-            temp_filename = s.capture(
+            temp_filename = await s.capture(
                                 track_data[3],
-                                track_data[0],
-                                self._config['SCREENSHOT_DELAY'])
+                                track_data[0])
 
             new_filename = temp_filename.replace('temp', 'new')
             old_filename = temp_filename.replace('temp', 'old')
@@ -665,21 +667,21 @@ class Actions:
                 await context.bot.send_message(
                         chat_id=track_data[2],
                         text="Old Image")
-                await context.bot.send_photo(
+                await context.bot.send_document(
                         chat_id=track_data[2],
-                        photo=open(old_filename, 'rb'))
+                        document=open(old_filename, 'rb'))
                 await context.bot.send_message(
                         chat_id=track_data[2],
                         text="New Image")
-                await context.bot.send_photo(
+                await context.bot.send_document(
                         chat_id=track_data[2],
-                        photo=open(new_filename, 'rb'))
+                        document=open(new_filename, 'rb'))
                 await context.bot.send_message(
                         chat_id=track_data[2],
                         text="Differences")
-                await context.bot.send_photo(
+                await context.bot.send_document(
                         chat_id=track_data[2],
-                        photo=open(output_file_name, 'rb'))
+                        document=open(output_file_name, 'rb'))
 
                 if os.path.exists(output_file_name):
                     os.remove(output_file_name)
