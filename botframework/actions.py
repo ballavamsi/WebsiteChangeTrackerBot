@@ -74,6 +74,8 @@ messages = {
     "/stop_jobs: To stop all jobs\n"
     "/begin_jobs: To start all jobs\n",
     "invalid_command": "Invalid command",
+    "broadcast_begin": "Please enter the message you want to broadcast",
+    "broadcast_success": "Broadcast scheduled for %s",
 }
 
 
@@ -81,7 +83,8 @@ class Actions:
 
     ADD, DELETE, TRACK, TRACK_TYPE, REENTER, SCREENSHOT, LIST, FEEDBACK,\
         INSTANT_COMPARE, INTERVAL, BEGIN_JOBS, STOP_JOBS,\
-        LIST_FEEDBACKS, LIST_USERS, USERS_COUNT, ADMIN_COMMANDS = range(16)
+        LIST_FEEDBACKS, LIST_USERS, USERS_COUNT, ADMIN_COMMANDS,\
+        BROADCAST_BEGIN, BROADCAST = range(18)
 
     def __init__(self):
         self.image_converter = ImageConverter()
@@ -553,6 +556,7 @@ class Actions:
             return await self.begin_jobs(update, context)
         if update.message.text == "/stop_jobs":
             return await self.stop_jobs(update, context)
+
         await self.reply_msg(update, messages["invalid_command"])
         return ConversationHandler.END
 
@@ -565,6 +569,59 @@ class Actions:
                 logger.info("Job removed %s" % job.name)
                 return True
         return False
+
+    async def broadcast_begin(self, update: Update, context: CallbackContext):
+        if await self.commandsHandler(update, context) is not None:
+            return ConversationHandler.END
+
+        if str(update.message.from_user.id) not in ADMIN_USERS:
+            return ConversationHandler.END
+
+        await self.reply_msg(update, messages["broadcast_begin"])
+        return self.BROADCAST
+
+    async def broadcast(self, update: Update, context: CallbackContext):
+        if await self.commandsHandler(update, context) is not None:
+            return ConversationHandler.END
+
+        if str(update.message.from_user.id) not in ADMIN_USERS:
+            return ConversationHandler.END
+
+        users = self._db.fetch_users()
+        for user in users:
+
+            if update.message.text.startswith("test"):
+                if not user[1] in ADMIN_USERS:
+                    continue
+
+            context.job_queue.run_once(
+                self.send_message_to_user,
+                60,
+                context=(
+                    user[1],
+                    f"Hey {user[2]},"
+                    f"\n\n{update.message.text}\n\n"
+                    "- @WebsiteChangeTrackerBot"),
+                name=f"broadcast_{user[0]}")
+            logger.info(f"Broadcast job added for {user[1]} ({user[0]})")
+            await self.reply_msg(update,
+                                 messages["broadcast_success"] % user[2])
+        return ConversationHandler.END
+
+    async def send_message_to_user(self, context: CallbackContext):
+        message_data = context.job.context
+        try:
+            await context.bot.send_message(
+                chat_id=message_data[0],
+                text=message_data[1],
+                disable_web_page_preview=True)
+            logger.info(f"Broadcast message sent to {message_data[1]}"
+                        f" ({message_data[0]})")
+        except Exception as e:
+            logger.error(f"Unable to broadcast message to {message_data[1]}"
+                         f" ({message_data[0]})")
+        finally:
+            await self.remove_job_if_exists(context.job.name, context)
 
     async def take_screenshot_once(self, context: CallbackContext):
         track_data = context.job.context

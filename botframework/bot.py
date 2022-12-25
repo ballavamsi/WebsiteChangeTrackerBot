@@ -113,18 +113,22 @@ class Bot:
             states={
                 action.ADMIN_COMMANDS: [MessageHandler(filters.TEXT,
                                                        action.admin_commands)],
-                action.BEGIN_JOBS: [MessageHandler(filters.TEXT,
-                                                   action.begin_jobs)],
-                action.STOP_JOBS: [MessageHandler(filters.TEXT,
-                                                  action.stop_jobs)],
-                action.LIST_FEEDBACKS: [MessageHandler(filters.TEXT,
-                                                       action.list_feedbacks)],
-                action.LIST_USERS: [MessageHandler(filters.TEXT,
-                                                   action.list_users)],
-                action.USERS_COUNT: [MessageHandler(filters.TEXT,
-                                                    action.users_count)],
-                action.REENTER: [MessageHandler(filters.TEXT,
-                                                action.admin_commands_begin)],
+                action.BROADCAST_BEGIN: [MessageHandler(
+                                            filters.TEXT,
+                                            action.broadcast_begin)],
+                action.BROADCAST: [MessageHandler(filters.TEXT,
+                                                  action.broadcast)],
+            },
+            fallbacks=[CommandHandler("cancel", action.cancel)],
+            allow_reentry=True
+        )
+
+        broadcast_conv_handler = ConversationHandler(
+            entry_points=[CommandHandler("broadcast",
+                                         action.broadcast_begin)],
+            states={
+                action.BROADCAST: [MessageHandler(filters.TEXT,
+                                                  action.broadcast)],
             },
             fallbacks=[CommandHandler("cancel", action.cancel)],
             allow_reentry=True
@@ -137,6 +141,7 @@ class Bot:
         app.add_handler(compare_conv_handler)
         app.add_handler(feedback_conv_handler)
         app.add_handler(admin_conv_handler)
+        app.add_handler(broadcast_conv_handler)
         app.add_handler(CommandHandler("list", action.list_tracking))
         app.add_handler(CommandHandler("help", action.help_info))
 

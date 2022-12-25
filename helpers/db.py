@@ -180,7 +180,7 @@ class DBHelper:
 
     def fetch_users_count(self):
         users = self._execute_(
-                        Queries[self.db_type]['get_users_count'],
+                        Queries[self.db_type]['get_all_users_count'],
                         type='fetchone')
         return users[0]
 
