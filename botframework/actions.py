@@ -389,7 +389,7 @@ class Actions:
 
         await self.reply_msg(update, "Instant Compare started")
         if track_data[4].lower() == "api":
-            await context.job_queue.run_once(
+            context.job_queue.run_once(
                 self.check_api_and_compare,
                 2,
                 chat_id=update.effective_message.chat_id,
@@ -397,7 +397,7 @@ class Actions:
                 context=track_data
             )
         if track_data[4].lower() == "screenshot":
-            await context.job_queue.run_once(
+            context.job_queue.run_once(
                 self.take_screenshot_and_compare,
                 2,
                 chat_id=update.effective_message.chat_id,
