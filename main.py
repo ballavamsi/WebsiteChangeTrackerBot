@@ -1,12 +1,14 @@
 from botframework.bot import Bot
+from helpers.logging import logger
 
 
 def main():
     try:
+        logger.info("Starting bot...")
         b = Bot()
     except Exception as e:
-        print(e)
-        print("Restarting bot...")
+        logger.error(e)
+        logger.error("Restarting bot...")
         main()
 
 
