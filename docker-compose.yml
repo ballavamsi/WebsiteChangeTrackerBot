@@ -1,11 +1,12 @@
+version: "3"
 services:
-  telegram-bot-websitechangetracker:
-    container_name: telegram-bot-websitechangetracker
+  bot:
+    container_name: websitetracker-bot
     restart: always
     build: .
     environment:
       WebsiteChangeTrackerBot_ACCESS_TOKEN: 
-      SQLITE_DB_PATH: websitechangertracker.db
+      SQLITE_DB_PATH: 
       ADMIN_USER: 
       DEFAULT_JOBS_RUN_TIME: 60
       BRAVE_BROWSER_PATH: ""
@@ -14,34 +15,77 @@ services:
       SELENIUM_URL: http://selenium-hub:4444/wd/hub
       SCREENSHOT_DELAY: 5
       DB_TYPE: mysql
-      DB_HOST: 
+      DB_HOST: mysql
+      DB_PORT: 3306
       DB_USER: 
       DB_PASSWORD: 
       DB_NAME: 
-      USE_FILESYSTEM_TO_SAVE_IMAGES: "False"
+      USE_FILESYSTEM_TO_SAVE_IMAGES: "True"
       FILESYSTEM_PATH: /data
     volumes:
-      - ./data:/data
+      - ./data/images:/data
+    depends_on:
+      - selenium-hub
+      - chrome
+      - mysql
+    networks:
+      vamsi-docker-net:
 
   selenium-hub:
     image: selenium/hub:4.7.1-20221208
     container_name: selenium-hub
+    restart: always
     ports:
       - "4442:4442"
       - "4443:4443"
       - "4444:4444"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data:/data
+      - ./driver:/driver
+    networks:
+      vamsi-docker-net:
 
   chrome:
     image: selenium/node-chrome:4.7.1-20221208
+    #image: selenium/standalone-chrome
     shm_size: 2gb
+    restart: always
     depends_on:
       - selenium-hub
     environment:
       - SE_EVENT_BUS_HOST=selenium-hub
       - SE_EVENT_BUS_PUBLISH_PORT=4442
       - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
-      - "NODE_MAX_SESSION:4"
-      - "NODE_MAX_INSTANCES:4"
+      # - SCREEN_WIDTH=1920
+      # - SCREEN_HEIGHT=1080
+      # - SCREEN_DPI=166
+      # - SCREEN_DEPTH=24
     deploy:
-      replicas: 2
+      replicas: 3
+    volumes:
+      - ./data:/data
+      - ./driver:/driver
     entrypoint: bash -c 'SE_OPTS="--host $$HOSTNAME" /opt/bin/entry_point.sh'
+    networks:
+      vamsi-docker-net:
+
+  mysql:
+    image: mysql:5.7
+    container_name: mysql
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: 
+      MYSQL_DATABASE: 
+      MYSQL_USER: 
+      MYSQL_PASSWORD: 
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    networks:
+      vamsi-docker-net:
+
+networks:
+  vamsi-docker-net:
+    external: true
