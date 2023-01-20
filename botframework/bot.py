@@ -2,10 +2,11 @@ from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     ConversationHandler,
-    MessageHandler, filters,
+    MessageHandler,
+    filters,
     JobQueue,
-    Updater
-    )
+    Updater,
+)
 from .actions import Actions
 from helpers.constants import ACCESS_TOKEN
 
@@ -23,33 +24,29 @@ class Bot:
         conv_handler = ConversationHandler(
             entry_points=[CommandHandler("start", action.start)],
             states={
-                action.ADD: [MessageHandler(filters.TEXT,
-                                            action.add_tracking)],
-                action.TRACK: [MessageHandler(filters.TEXT,
-                                              action.add_tracking)],
-                action.TRACK_TYPE: [MessageHandler(filters.TEXT,
-                                                   action.set_tracking_type)],
-                action.INTERVAL: [MessageHandler(filters.TEXT,
-                                                 action.set_interval)],
-                action.LIST: [MessageHandler(filters.TEXT,
-                                             action.list_tracking)],
-                action.REENTER: [MessageHandler(filters.TEXT,
-                                                action.add_tracking)],
+                action.ADD: [MessageHandler(filters.TEXT, action.add_tracking)],
+                action.TRACK: [MessageHandler(filters.TEXT, action.add_tracking)],
+                action.TRACK_TYPE: [
+                    MessageHandler(filters.TEXT, action.set_tracking_type)
+                ],
+                action.INTERVAL: [MessageHandler(filters.TEXT, action.set_interval)],
+                action.LIST: [MessageHandler(filters.TEXT, action.list_tracking)],
+                action.REENTER: [MessageHandler(filters.TEXT, action.add_tracking)],
             },
-            fallbacks=[CommandHandler("cancel", action.cancel)]
+            fallbacks=[CommandHandler("cancel", action.cancel)],
         )
 
         add_conv_handler = ConversationHandler(
             entry_points=[CommandHandler("add", action.add_tracking_begin)],
             states={
-                action.TRACK: [MessageHandler(filters.TEXT,
-                                              action.add_tracking)],
-                action.TRACK_TYPE: [MessageHandler(filters.TEXT,
-                                                   action.set_tracking_type)],
-                action.INTERVAL: [MessageHandler(filters.TEXT,
-                                                 action.set_interval)],
-                action.REENTER: [MessageHandler(filters.TEXT,
-                                                action.add_tracking_begin)],
+                action.TRACK: [MessageHandler(filters.TEXT, action.add_tracking)],
+                action.TRACK_TYPE: [
+                    MessageHandler(filters.TEXT, action.set_tracking_type)
+                ],
+                action.INTERVAL: [MessageHandler(filters.TEXT, action.set_interval)],
+                action.REENTER: [
+                    MessageHandler(filters.TEXT, action.add_tracking_begin)
+                ],
             },
             fallbacks=[CommandHandler("cancel", action.cancel)],
         )
@@ -57,81 +54,73 @@ class Bot:
         del_conv_handler = ConversationHandler(
             entry_points=[CommandHandler("del", action.stop_tracking_begin)],
             states={
-                action.DELETE: [MessageHandler(filters.TEXT,
-                                               action.stop_tracking)],
-                action.REENTER: [MessageHandler(filters.TEXT,
-                                                action.stop_tracking_begin)],
+                action.DELETE: [MessageHandler(filters.TEXT, action.stop_tracking)],
+                action.REENTER: [
+                    MessageHandler(filters.TEXT, action.stop_tracking_begin)
+                ],
             },
             fallbacks=[CommandHandler("cancel", action.cancel)],
-            allow_reentry=True
+            allow_reentry=True,
         )
 
         screenshot_conv_handler = ConversationHandler(
-            entry_points=[CommandHandler("screenshot",
-                                         action.screenshot_begin)],
+            entry_points=[CommandHandler("screenshot", action.screenshot_begin)],
             states={
-                action.SCREENSHOT: [MessageHandler(filters.TEXT,
-                                                   action.screenshot)],
-                action.REENTER: [MessageHandler(filters.TEXT,
-                                                action.screenshot_begin)],
+                action.SCREENSHOT: [MessageHandler(filters.TEXT, action.screenshot)],
+                action.REENTER: [MessageHandler(filters.TEXT, action.screenshot_begin)],
             },
             fallbacks=[CommandHandler("cancel", action.cancel)],
-            allow_reentry=True
+            allow_reentry=True,
         )
 
         compare_conv_handler = ConversationHandler(
-            entry_points=[CommandHandler("compare",
-                                         action.instant_compare_begin)],
+            entry_points=[CommandHandler("compare", action.instant_compare_begin)],
             states={
-                action.INSTANT_COMPARE: [MessageHandler(
-                    filters.TEXT,
-                    action.instant_compare)],
-                action.REENTER: [MessageHandler(filters.TEXT,
-                                                action.instant_compare_begin)],
+                action.INSTANT_COMPARE: [
+                    MessageHandler(filters.TEXT, action.instant_compare)
+                ],
+                action.REENTER: [
+                    MessageHandler(filters.TEXT, action.instant_compare_begin)
+                ],
             },
             fallbacks=[CommandHandler("cancel", action.cancel)],
-            allow_reentry=True
+            allow_reentry=True,
         )
 
         feedback_conv_handler = ConversationHandler(
-            entry_points=[CommandHandler("feedback",
-                                         action.add_feedback_begin)],
+            entry_points=[CommandHandler("feedback", action.add_feedback_begin)],
             states={
-                action.FEEDBACK: [MessageHandler(filters.TEXT,
-                                                 action.add_feedback)],
-                action.REENTER: [MessageHandler(filters.TEXT,
-                                                action.add_feedback_begin)],
+                action.FEEDBACK: [MessageHandler(filters.TEXT, action.add_feedback)],
+                action.REENTER: [
+                    MessageHandler(filters.TEXT, action.add_feedback_begin)
+                ],
             },
             fallbacks=[CommandHandler("cancel", action.cancel)],
-            allow_reentry=True
+            allow_reentry=True,
         )
 
         admin_conv_handler = ConversationHandler(
-            entry_points=[CommandHandler(
-                            "admin",
-                            action.admin_commands_begin)],
+            entry_points=[CommandHandler("admin", action.admin_commands_begin)],
             states={
-                action.ADMIN_COMMANDS: [MessageHandler(filters.TEXT,
-                                                       action.admin_commands)],
-                action.BROADCAST_BEGIN: [MessageHandler(
-                                            filters.TEXT,
-                                            action.broadcast_begin)],
-                action.BROADCAST: [MessageHandler(filters.TEXT,
-                                                  action.broadcast)],
+                action.ADMIN_COMMANDS: [
+                    MessageHandler(filters.TEXT, action.admin_commands)
+                ],
+                action.BROADCAST_BEGIN: [
+                    MessageHandler(filters.TEXT, action.broadcast_begin)
+                ],
+                action.BROADCAST: [MessageHandler(filters.TEXT, action.broadcast)],
             },
             fallbacks=[CommandHandler("cancel", action.cancel)],
-            allow_reentry=True
+            allow_reentry=True,
         )
 
         broadcast_conv_handler = ConversationHandler(
-            entry_points=[CommandHandler("broadcast",
-                                         action.broadcast_begin)],
+            entry_points=[CommandHandler("broadcast", action.broadcast_begin)],
             states={
-                action.BROADCAST: [MessageHandler(filters.TEXT,
-                                                  action.broadcast)],
+                action.BROADCAST: [MessageHandler(filters.TEXT, action.broadcast)],
             },
             fallbacks=[CommandHandler("cancel", action.cancel)],
-            allow_reentry=True
+            allow_reentry=True,
         )
 
         app.add_handler(conv_handler)
@@ -145,9 +134,9 @@ class Bot:
         app.add_handler(CommandHandler("list", action.list_tracking))
         app.add_handler(CommandHandler("help", action.help_info))
 
-        jobs = JobQueue()
-        jobs.set_application(app)
-        _total, jq = action.create_job_queue_list(jobs)
-        app.job_queue = jq
+        # jobs = JobQueue()
+        # jobs.set_application(app)
+        _total, jq = action.create_job_queue_list(app.job_queue)
+        # app.job_queue = jq
 
         app.run_polling(stop_signals=None)

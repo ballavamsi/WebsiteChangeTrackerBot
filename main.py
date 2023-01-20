@@ -1,5 +1,6 @@
 from botframework.bot import Bot
 from helpers.logging import logger
+import traceback
 
 
 def main():
@@ -8,6 +9,7 @@ def main():
         b = Bot()
     except Exception as e:
         logger.error(e)
+        traceback.print_exc()
         logger.error("Restarting bot...")
         main()
 

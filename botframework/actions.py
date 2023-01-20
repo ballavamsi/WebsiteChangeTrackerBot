@@ -1,9 +1,5 @@
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
-from telegram.ext import (
-    ConversationHandler,
-    CallbackContext,
-    JobQueue
-)
+from telegram.ext import ConversationHandler, CallbackContext, JobQueue
 import validators
 import os
 import requests
@@ -20,8 +16,7 @@ from botframework.constants import *
 
 messages = {
     "start": "Hello %s",
-    "add": "Please enter the url you want to track:"
-    "\nex: https://ballavamsi.com",
+    "add": "Please enter the url you want to track:" "\nex: https://ballavamsi.com",
     "add_success": "Tracking %s",
     "add_fail": "Tracking failed",
     "del": "Please enter the url you want to stop tracking",
@@ -33,12 +28,10 @@ messages = {
     "list_empty": "No tracking found",
     "list_fail": "List failed",
     "screenshot": "Please enter the url you want to take screenshot",
-    "screenshot_id": "Please enter the ID of the url you want to take "
-    "screenshot",
+    "screenshot_id": "Please enter the ID of the url you want to take " "screenshot",
     "screenshot_success": "Screenshot taken",
     "screenshot_fail": "Failed to take screenshot for %s",
-    "screenshot_change": "We have identified a change in the screenshot"
-    " for %s",
+    "screenshot_change": "We have identified a change in the screenshot" " for %s",
     "screenshot_taken": "Here is the screenshot of %s",
     "screenshot_once": "Taking screenshot once",
     "screenshot_nochange": "No change in screenshot for %s",
@@ -81,10 +74,26 @@ messages = {
 
 class Actions:
 
-    ADD, DELETE, TRACK, TRACK_TYPE, REENTER, SCREENSHOT, LIST, FEEDBACK,\
-        INSTANT_COMPARE, INTERVAL, BEGIN_JOBS, STOP_JOBS,\
-        LIST_FEEDBACKS, LIST_USERS, USERS_COUNT, ADMIN_COMMANDS,\
-        BROADCAST_BEGIN, BROADCAST = range(18)
+    (
+        ADD,
+        DELETE,
+        TRACK,
+        TRACK_TYPE,
+        REENTER,
+        SCREENSHOT,
+        LIST,
+        FEEDBACK,
+        INSTANT_COMPARE,
+        INTERVAL,
+        BEGIN_JOBS,
+        STOP_JOBS,
+        LIST_FEEDBACKS,
+        LIST_USERS,
+        USERS_COUNT,
+        ADMIN_COMMANDS,
+        BROADCAST_BEGIN,
+        BROADCAST,
+    ) = range(18)
 
     def __init__(self):
         self.image_converter = ImageConverter()
@@ -93,14 +102,20 @@ class Actions:
 
     async def pre_checks(self, update: Update):
         if self._db.fetch_user(update.message.from_user.id) is None:
-            self._db.insert_user(update.message.from_user.id,
-                                 update.message.from_user.first_name,
-                                 update.message.from_user.username)
-            logger.info(f"Created user {update.message.from_user.id}"
-                        f" ({update.message.from_user.username})")
+            self._db.insert_user(
+                update.message.from_user.id,
+                update.message.from_user.first_name,
+                update.message.from_user.username,
+            )
+            logger.info(
+                f"Created user {update.message.from_user.id}"
+                f" ({update.message.from_user.username})"
+            )
         else:
-            logger.info(f"User {update.message.from_user.id}"
-                        f" ({update.message.from_user.username}) exists")
+            logger.info(
+                f"User {update.message.from_user.id}"
+                f" ({update.message.from_user.username}) exists"
+            )
 
     async def update_configs(self):
         configs_res = self._db.list_configs()
@@ -108,21 +123,25 @@ class Actions:
 
     async def reply_msg(self, update: Update, *args, **kwargs):
 
-        logger.info(f"Replying with {args[0]} "
-                    f"to {update.message.from_user.id} "
-                    f"({update.message.from_user.first_name})")
+        logger.info(
+            f"Replying with {args[0]} "
+            f"to {update.message.from_user.id} "
+            f"({update.message.from_user.first_name})"
+        )
 
-        if kwargs.get('reply_markup') is None:
-            kwargs['reply_markup'] = ReplyKeyboardRemove()
+        if kwargs.get("reply_markup") is None:
+            kwargs["reply_markup"] = ReplyKeyboardRemove()
 
         await update.message.reply_text(*args, **kwargs)
 
     async def commandsHandler(self, update: Update, context: CallbackContext):
 
         await self.pre_checks(update)
-        logger.info(f"Received command {update.message.text} from "
-                    f"{update.message.from_user.id} "
-                    f"({update.message.from_user.first_name})")
+        logger.info(
+            f"Received command {update.message.text} from "
+            f"{update.message.from_user.id} "
+            f"({update.message.from_user.first_name})"
+        )
 
         if update.message.text in ["/cancel"]:
             await self.reply_msg(update, messages["cancel"])
@@ -135,9 +154,9 @@ class Actions:
 
         if await self.commandsHandler(update, context) is not None:
             return ConversationHandler.END
-        await self.reply_msg(update,
-                             messages["start"] %
-                             update.message.from_user.first_name)
+        await self.reply_msg(
+            update, messages["start"] % update.message.from_user.first_name
+        )
         await self.reply_msg(update, messages["add"])
         return self.TRACK
 
@@ -162,25 +181,27 @@ class Actions:
 
         compare_types_res = self._db.fetch_compare_types()
         compare_types = [x[1] for x in compare_types_res]
-        context.user_data['url'] = update.message.text
+        context.user_data["url"] = update.message.text
 
         minutes_options_res = self._db.list_minute_options()
         minutes_options = [x[1] for x in minutes_options_res]
 
         if len(compare_types) == 1:
-            context.user_data['type'] = compare_types[0]
-            await self.reply_msg(update,
-                                 messages["select_interval"],
-                                 reply_markup=ReplyKeyboardMarkup(
-                                  [minutes_options],
-                                  one_time_keyboard=True))
+            context.user_data["type"] = compare_types[0]
+            await self.reply_msg(
+                update,
+                messages["select_interval"],
+                reply_markup=ReplyKeyboardMarkup(
+                    [minutes_options], one_time_keyboard=True
+                ),
+            )
             return self.INTERVAL
 
-        await self.reply_msg(update,
-                             messages["track_type"],
-                             reply_markup=ReplyKeyboardMarkup(
-                                [compare_types],
-                                one_time_keyboard=True))
+        await self.reply_msg(
+            update,
+            messages["track_type"],
+            reply_markup=ReplyKeyboardMarkup([compare_types], one_time_keyboard=True),
+        )
 
         return self.TRACK_TYPE
 
@@ -190,11 +211,10 @@ class Actions:
         urls = self._db.list_tracking(update.message.from_user.id)
         list_urls_msg = messages["del_id"]
         for url in urls:
-            list_urls_msg += f"\nID: {url[0]}\n-> URL: {url[3]}" + \
-                f"\n-> Capture Type: {url[4]}\n"
-        await self.reply_msg(update,
-                             list_urls_msg,
-                             disable_web_page_preview=True)
+            list_urls_msg += (
+                f"\nID: {url[0]}\n-> URL: {url[3]}" + f"\n-> Capture Type: {url[4]}\n"
+            )
+        await self.reply_msg(update, list_urls_msg, disable_web_page_preview=True)
         return self.DELETE
 
     async def stop_tracking(self, update: Update, context: CallbackContext):
@@ -218,14 +238,20 @@ class Actions:
 
         # delete data files
         if os.getenv("USE_FILESYSTEM_TO_SAVE_IMAGES") == "True":
-            if os.path.exists(f"{os.getenv('FILESYSTEM_PATH')}/"
-                              f"screenshot_{track_data[0]}_old.png"):
-                os.remove(f"{os.getenv('FILESYSTEM_PATH')}" +
-                          f"/screenshot_{track_data[0]}_old.png")
-            if os.path.exists(f"{os.getenv('FILESYSTEM_PATH')}/"
-                              f"screenshot_{track_data[0]}_new.png"):
-                os.remove(f"{os.getenv('FILESYSTEM_PATH')}/"
-                          f"screenshot_{track_data[0]}_new.png")
+            if os.path.exists(
+                f"{os.getenv('FILESYSTEM_PATH')}/" f"screenshot_{track_data[0]}_old.png"
+            ):
+                os.remove(
+                    f"{os.getenv('FILESYSTEM_PATH')}"
+                    + f"/screenshot_{track_data[0]}_old.png"
+                )
+            if os.path.exists(
+                f"{os.getenv('FILESYSTEM_PATH')}/" f"screenshot_{track_data[0]}_new.png"
+            ):
+                os.remove(
+                    f"{os.getenv('FILESYSTEM_PATH')}/"
+                    f"screenshot_{track_data[0]}_new.png"
+                )
 
         self._db.delete_tracking(update.message.text)
         await self.remove_job_if_exists(str(track_data[0]), context)
@@ -235,87 +261,90 @@ class Actions:
     async def set_interval(self, update: Update, context: CallbackContext):
         if await self.commandsHandler(update, context) is not None:
             return ConversationHandler.END
-        context.user_data['interval'] = update.message.text
+        context.user_data["interval"] = update.message.text
 
         minutes_options_res = self._db.fetch_minute_option_by_name(
-            context.user_data['interval'])
+            context.user_data["interval"]
+        )
         if minutes_options_res is None:
             await self.reply_msg(update, messages["invalid_interval"])
             await self.reply_msg(update, messages["default_interval"])
-            context.user_data['interval'] = "60min"
+            context.user_data["interval"] = "60min"
             minutes_options_res = self._db.fetch_minute_option_by_name(
-                context.user_data['interval'])
+                context.user_data["interval"]
+            )
 
-        context.user_data['interval_min'] = minutes_options_res[2]
+        context.user_data["interval_min"] = minutes_options_res[2]
         new_id = await self.add_tracking_to_db(update, context)
         track_data = self._db.fetch_tracking(new_id)
 
         # add jobs to queue
-        if context.user_data['type'].lower() == "api":
+        if context.user_data["type"].lower() == "api":
             await self.reply_msg(update, "Calling API once")
             context.job_queue.run_once(
                 self.call_api_once,
                 2,
                 chat_id=update.effective_message.chat_id,
-                name='once_' + str(new_id),
-                context=track_data
+                name="once_" + str(new_id),
+                context=track_data,
             )
             context.job_queue.run_repeating(
                 self.check_api_and_compare,
-                timedelta(
-                 minutes=context.user_data['interval_min']),
+                timedelta(minutes=context.user_data["interval_min"]),
                 chat_id=update.effective_message.chat_id,
                 name=str(new_id),
-                context=track_data)
+                data=track_data,
+            )
 
-        if context.user_data['type'].lower() == 'screenshot':
+        if context.user_data["type"].lower() == "screenshot":
             await self.reply_msg(update, "Taking screenshot once")
             context.job_queue.run_once(
                 self.take_screenshot_once,
                 2,
                 chat_id=update.effective_message.chat_id,
-                name='once_' + str(new_id),
-                context=track_data
+                name="once_" + str(new_id),
+                context=track_data,
             )
 
             context.job_queue.run_repeating(
                 self.take_screenshot_and_compare,
-                timedelta(
-                 minutes=context.user_data['interval_min']),
+                timedelta(minutes=context.user_data["interval_min"]),
                 chat_id=update.effective_message.chat_id,
                 name=str(new_id),
-                context=track_data)
+                data=track_data,
+            )
 
         return ConversationHandler.END
 
-    async def set_tracking_type(self, update: Update,
-                                context: CallbackContext):
+    async def set_tracking_type(self, update: Update, context: CallbackContext):
         if await self.commandsHandler(update, context) is not None:
             return ConversationHandler.END
-        context.user_data['type'] = update.message.text
+        context.user_data["type"] = update.message.text
 
         minutes_options_res = self._db.list_minute_options()
         minutes_options = [x[1] for x in minutes_options_res]
-        await self.reply_msg(update,
-                             messages["select_interval"],
-                             reply_markup=ReplyKeyboardMarkup(
-                                [minutes_options],
-                                one_time_keyboard=True))
+        await self.reply_msg(
+            update,
+            messages["select_interval"],
+            reply_markup=ReplyKeyboardMarkup([minutes_options], one_time_keyboard=True),
+        )
 
         return self.INTERVAL
 
     async def add_tracking_to_db(self, update, context):
         new_id = self._db.insert_tracking(
-                    update.message.from_user.id,
-                    update.effective_message.chat_id,
-                    context.user_data['url'],
-                    context.user_data['type'],
-                    context.user_data['interval_min'])
+            update.message.from_user.id,
+            update.effective_message.chat_id,
+            context.user_data["url"],
+            context.user_data["type"],
+            context.user_data["interval_min"],
+        )
         logger.info("Added new tracking with id %s", new_id)
         await self.reply_msg(
-                update,
-                messages["add_success"] % context.user_data['url'],
-                disable_web_page_preview=True)
+            update,
+            messages["add_success"] % context.user_data["url"],
+            disable_web_page_preview=True,
+        )
         return new_id
 
     async def list_tracking(self, update: Update, context: CallbackContext):
@@ -333,13 +362,14 @@ class Actions:
             minutes_options_res = self._db.list_minute_options()
             rev_minutes_options = {x[2]: x[1] for x in minutes_options_res}
             for url in urls:
-                urls_list = urls_list + f"ID: {url[0]}\n-> URL: {url[3]}" + \
-                            f"\n-> Capture Type: {url[4]}" + \
-                            f"\n-> Interval: {rev_minutes_options[url[8]]}" + \
-                            f"\n-> Last Run: {url[9]}\n\n"
-            await self.reply_msg(update,
-                                 urls_list,
-                                 disable_web_page_preview=True)
+                urls_list = (
+                    urls_list
+                    + f"ID: {url[0]}\n-> URL: {url[3]}"
+                    + f"\n-> Capture Type: {url[4]}"
+                    + f"\n-> Interval: {rev_minutes_options[url[8]]}"
+                    + f"\n-> Last Run: {url[9]}\n\n"
+                )
+            await self.reply_msg(update, urls_list, disable_web_page_preview=True)
         return ConversationHandler.END
 
     async def cancel(self, update: Update, context: CallbackContext):
@@ -352,7 +382,9 @@ class Actions:
     async def help_info(self, update: Update, context: CallbackContext):
 
         await self.pre_checks(update)
-        await self.reply_msg(update, "You can enter below \
+        await self.reply_msg(
+            update,
+            "You can enter below \
             commands\n/start - start tracking\
             \n/list - list tracking urls\
             \n/add - add tracking url\
@@ -361,18 +393,19 @@ class Actions:
             \n/screenshot - get screenshot of url\
             \n/compare - instantly compare\
             \n/feedback - provide feedback to ballavamsi\
-            \n/cancel to cancel the current operation")
+            \n/cancel to cancel the current operation",
+        )
 
-    async def instant_compare_begin(self, update: Update,
-                                    context: CallbackContext):
+    async def instant_compare_begin(self, update: Update, context: CallbackContext):
         urls = self._db.list_tracking(update.message.from_user.id)
         list_urls_msg = messages["instant_compare"]
         for url in urls:
-            list_urls_msg = list_urls_msg + f"\nID: {url[0]}\n-> URL: " + \
-                f"{url[3]}\n-> Capture Type: {url[4]}\n"
-        await self.reply_msg(update,
-                             list_urls_msg,
-                             disable_web_page_preview=True)
+            list_urls_msg = (
+                list_urls_msg
+                + f"\nID: {url[0]}\n-> URL: "
+                + f"{url[3]}\n-> Capture Type: {url[4]}\n"
+            )
+        await self.reply_msg(update, list_urls_msg, disable_web_page_preview=True)
         return self.INSTANT_COMPARE
 
     async def instant_compare(self, update: Update, context: CallbackContext):
@@ -396,16 +429,16 @@ class Actions:
                 self.check_api_and_compare,
                 2,
                 chat_id=update.effective_message.chat_id,
-                name='instant_' + str(track_data[0]),
-                context=track_data
+                name="instant_" + str(track_data[0]),
+                context=track_data,
             )
         if track_data[4].lower() == "screenshot":
             context.job_queue.run_once(
                 self.take_screenshot_and_compare,
                 2,
                 chat_id=update.effective_message.chat_id,
-                name='instant_' + str(track_data[0]),
-                context=track_data
+                name="instant_" + str(track_data[0]),
+                context=track_data,
             )
         return ConversationHandler.END
 
@@ -414,15 +447,16 @@ class Actions:
         list_urls_msg = messages["screenshot_id"]
         for url in urls:
             if url[4].lower() == "screenshot":
-                list_urls_msg = list_urls_msg + f"\nID: {url[0]}\n-> URL: " + \
-                    f"{url[3]}\n-> Capture Type: {url[4]}\n"
+                list_urls_msg = (
+                    list_urls_msg
+                    + f"\nID: {url[0]}\n-> URL: "
+                    + f"{url[3]}\n-> Capture Type: {url[4]}\n"
+                )
         if len(urls) == 0:
             await self.reply_msg(update, messages["blank_data"])
             return ConversationHandler.END
 
-        await self.reply_msg(update,
-                             list_urls_msg,
-                             disable_web_page_preview=True)
+        await self.reply_msg(update, list_urls_msg, disable_web_page_preview=True)
         return self.SCREENSHOT
 
     async def screenshot(self, update: Update, context: CallbackContext):
@@ -454,8 +488,8 @@ class Actions:
             self.take_screenshot_once,
             2,
             chat_id=update.effective_message.chat_id,
-            name='once_' + str(track_data[0]),
-            context=track_data
+            name="once_" + str(track_data[0]),
+            context=track_data,
         )
         return ConversationHandler.END
 
@@ -470,8 +504,7 @@ class Actions:
         if await self.commandsHandler(update, context) is not None:
             return ConversationHandler.END
 
-        self._db.insert_feedback(update.message.from_user.id,
-                                 update.message.text)
+        self._db.insert_feedback(update.message.from_user.id, update.message.text)
         await self.reply_msg(update, messages["feedback_success"])
         return ConversationHandler.END
 
@@ -489,14 +522,14 @@ class Actions:
 
             if feedback_user is None:
                 continue
-            feedbacks_list = \
-                feedbacks_list + f"User: " + \
-                f"{feedback_user[2]}" + \
-                f"\n-> Feedback: {feedback[2]}\n" + \
-                f"-> Date: {feedback[3]}\n"
-        await self.reply_msg(update,
-                             feedbacks_list,
-                             disable_web_page_preview=True)
+            feedbacks_list = (
+                feedbacks_list
+                + f"User: "
+                + f"{feedback_user[2]}"
+                + f"\n-> Feedback: {feedback[2]}\n"
+                + f"-> Date: {feedback[3]}\n"
+            )
+        await self.reply_msg(update, feedbacks_list, disable_web_page_preview=True)
         return ConversationHandler.END
 
     async def list_users(self, update: Update, context: CallbackContext):
@@ -510,9 +543,7 @@ class Actions:
         users_list = ""
         for user in users:
             users_list = users_list + f"User: {user[2]}\n-> ID: {user[1]}\n"
-        await self.reply_msg(update,
-                             users_list,
-                             disable_web_page_preview=True)
+        await self.reply_msg(update, users_list, disable_web_page_preview=True)
         return ConversationHandler.END
 
     async def users_count(self, update: Update, context: CallbackContext):
@@ -527,8 +558,7 @@ class Actions:
         return ConversationHandler.END
 
     # ADMIN COMMANDS
-    async def admin_commands_begin(self, update: Update,
-                                   context: CallbackContext):
+    async def admin_commands_begin(self, update: Update, context: CallbackContext):
         if await self.commandsHandler(update, context) is not None:
             return ConversationHandler.END
 
@@ -597,85 +627,88 @@ class Actions:
             context.job_queue.run_once(
                 self.send_message_to_user,
                 60,
-                context=(
+                data=(
                     user[1],
                     f"Hey {user[2]},"
                     f"\n\n{update.message.text}\n\n"
-                    "- @WebsiteChangeTrackerBot"),
-                name=f"broadcast_{user[0]}")
+                    "- @WebsiteChangeTrackerBot",
+                ),
+                name=f"broadcast_{user[0]}",
+            )
             logger.info(f"Broadcast job added for {user[1]} ({user[0]})")
-            await self.reply_msg(update,
-                                 messages["broadcast_success"] % user[2])
+            await self.reply_msg(update, messages["broadcast_success"] % user[2])
         return ConversationHandler.END
 
     async def send_message_to_user(self, context: CallbackContext):
-        message_data = context.job.context
+        message_data = context.job.data
         try:
             await context.bot.send_message(
                 chat_id=message_data[0],
                 text=message_data[1],
-                disable_web_page_preview=True)
-            logger.info(f"Broadcast message sent to {message_data[1]}"
-                        f" ({message_data[0]})")
+                disable_web_page_preview=True,
+            )
+            logger.info(
+                f"Broadcast message sent to {message_data[1]}" f" ({message_data[0]})"
+            )
         except Exception as e:
-            logger.error(f"Unable to broadcast message to {message_data[1]}"
-                         f" ({message_data[0]})")
+            logger.error(
+                f"Unable to broadcast message to {message_data[1]}"
+                f" ({message_data[0]})"
+            )
         finally:
             await self.remove_job_if_exists(context.job.name, context)
 
     async def take_screenshot_once(self, context: CallbackContext):
-        track_data = context.job.context
+        track_data = context.job.data
         try:
             # await self.update_configs()
             s = Screenshot(admin_user=str(track_data[2]) in ADMIN_USERS)
-            temp_filename = await s.capture(
-                                track_data[3],
-                                track_data[0])
+            temp_filename = await s.capture(track_data[3], track_data[0])
 
             await context.bot.send_message(
                 chat_id=track_data[2],
                 text=f"{messages['screenshot_taken']}" % track_data[3],
-                disable_web_page_preview=True)
+                disable_web_page_preview=True,
+            )
 
             await context.bot.send_document(
-                chat_id=track_data[2],
-                document=open(temp_filename, 'rb'))
+                chat_id=track_data[2], document=open(temp_filename, "rb")
+            )
         except Exception as e:
             await context.bot.send_message(
                 chat_id=track_data[2],
                 text=f"{messages['screenshot_fail']}" % track_data[3],
-                disable_web_page_preview=True)
+                disable_web_page_preview=True,
+            )
             logger.error(e)
         await self.remove_job_if_exists(context.job.name, context)
 
     async def take_screenshot_and_compare(self, context: CallbackContext):
-        if context.job.name.startswith('instant_'):
+        if context.job.name.startswith("instant_"):
             await self.remove_job_if_exists(context.job.name, context)
         try:
-            track_data = context.job.context
+            track_data = context.job.data
             # await self.update_configs()
             # track_data = self._db.fetch_tracking(track_data[0])
             s = Screenshot(admin_user=str(track_data[2]) in ADMIN_USERS)
-            temp_filename = await s.capture(
-                                track_data[3],
-                                track_data[0])
+            temp_filename = await s.capture(track_data[3], track_data[0])
 
-            new_filename = temp_filename.replace('temp', 'new')
-            old_filename = temp_filename.replace('temp', 'old')
+            new_filename = temp_filename.replace("temp", "new")
+            old_filename = temp_filename.replace("temp", "old")
 
-            if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+            if os.getenv("USE_FILESYSTEM_TO_SAVE_IMAGES") == "False":
                 if track_data[5] is None:
-                    old_image_content = self.image_converter.\
-                                        convert_image_to_base64(temp_filename)
+                    old_image_content = self.image_converter.convert_image_to_base64(
+                        temp_filename
+                    )
                     self._db.update_tracking(
-                        track_data[0],
-                        'old_image',
-                        old_image_content)
+                        track_data[0], "old_image", old_image_content
+                    )
                     return
                 else:
                     self.image_converter.convert_base64_to_image(
-                        track_data[5],
-                        old_filename)
+                        track_data[5], old_filename
+                    )
 
             if not os.path.exists(old_filename):
                 os.replace(temp_filename, old_filename)
@@ -684,11 +717,11 @@ class Actions:
             # compare temp image and new image
             # only if they are different then replace new image with temp image
 
-            if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+            if os.getenv("USE_FILESYSTEM_TO_SAVE_IMAGES") == "False":
                 if not track_data[6] is None:
                     self.image_converter.convert_base64_to_image(
-                        track_data[6],
-                        new_filename)
+                        track_data[6], new_filename
+                    )
 
             if os.path.exists(new_filename):
                 c = ImageComparer(track_data[0], temp_filename, new_filename)
@@ -696,14 +729,13 @@ class Actions:
                     os.remove(new_filename)
                     os.replace(temp_filename, new_filename)
 
-                    if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
-                        new_image_content = self.\
-                            image_converter.\
-                            convert_image_to_base64(new_filename)
+                    if os.getenv("USE_FILESYSTEM_TO_SAVE_IMAGES") == "False":
+                        new_image_content = (
+                            self.image_converter.convert_image_to_base64(new_filename)
+                        )
                         self._db.update_tracking(
-                            track_data[0],
-                            'new_image',
-                            new_image_content)
+                            track_data[0], "new_image", new_image_content
+                        )
             else:
                 os.replace(temp_filename, new_filename)
 
@@ -711,34 +743,32 @@ class Actions:
             c = ImageComparer(track_data[0], old_filename, new_filename)
             if c.compare() > 0:
 
-                logger.info("Image changed for %s\n"
-                            "Sending message to %s\n",
-                            track_data[3],
-                            track_data[2])
+                logger.info(
+                    "Image changed for %s\n" "Sending message to %s\n",
+                    track_data[3],
+                    track_data[2],
+                )
 
                 await context.bot.send_message(
                     chat_id=track_data[2],
                     text=messages["screenshot_change"] % track_data[3],
-                    disable_web_page_preview=True)
+                    disable_web_page_preview=True,
+                )
                 output_file_name = c.compare_and_highlight()
-                await context.bot.send_message(
-                        chat_id=track_data[2],
-                        text="Old Image")
+                await context.bot.send_message(chat_id=track_data[2], text="Old Image")
                 await context.bot.send_document(
-                        chat_id=track_data[2],
-                        document=open(old_filename, 'rb'))
-                await context.bot.send_message(
-                        chat_id=track_data[2],
-                        text="New Image")
+                    chat_id=track_data[2], document=open(old_filename, "rb")
+                )
+                await context.bot.send_message(chat_id=track_data[2], text="New Image")
                 await context.bot.send_document(
-                        chat_id=track_data[2],
-                        document=open(new_filename, 'rb'))
+                    chat_id=track_data[2], document=open(new_filename, "rb")
+                )
                 await context.bot.send_message(
-                        chat_id=track_data[2],
-                        text="Differences")
+                    chat_id=track_data[2], text="Differences"
+                )
                 await context.bot.send_document(
-                        chat_id=track_data[2],
-                        document=open(output_file_name, 'rb'))
+                    chat_id=track_data[2], document=open(output_file_name, "rb")
+                )
 
                 if os.path.exists(output_file_name):
                     os.remove(output_file_name)
@@ -746,132 +776,138 @@ class Actions:
                 if os.path.exists(old_filename):
                     os.remove(old_filename)
 
-                    if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
-                        self._db.update_tracking(
-                            track_data[0],
-                            'old_image',
-                            None)
+                    if os.getenv("USE_FILESYSTEM_TO_SAVE_IMAGES") == "False":
+                        self._db.update_tracking(track_data[0], "old_image", None)
 
                 if os.path.exists(new_filename):
                     os.replace(new_filename, old_filename)
 
-                    if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
-                        new_image_content = \
-                            self.image_converter.\
-                            convert_image_to_base64(new_filename)
+                    if os.getenv("USE_FILESYSTEM_TO_SAVE_IMAGES") == "False":
+                        new_image_content = (
+                            self.image_converter.convert_image_to_base64(new_filename)
+                        )
                         self._db.update_tracking(
-                            track_data[0],
-                            'old_image',
-                            new_image_content)
+                            track_data[0], "old_image", new_image_content
+                        )
 
-                        self._db.update_tracking(
-                            track_data[0],
-                            'new_image',
-                            None)
+                        self._db.update_tracking(track_data[0], "new_image", None)
             else:
-                if context.job.name.startswith('instant_'):
+                if context.job.name.startswith("instant_"):
                     await context.bot.send_message(
                         chat_id=track_data[2],
                         text=messages["screenshot_nochange"] % track_data[3],
-                        disable_web_page_preview=True)
+                        disable_web_page_preview=True,
+                    )
 
             self._db.update_tracking(
                 track_data[0],
-                'last_run',
-                datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
+                "last_run",
+                datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            )
         except Exception as e:
             logger.error(e)
 
     async def call_api_once(self, context: CallbackContext):
         try:
-            response = requests.get(context.job.context[3])
+            response = requests.get(context.job.data[3])
             if response.status_code != 200:
                 logger.error("Error while calling api %s", response.text)
                 await context.bot.send_message(
-                    chat_id=context.job.context[2],
-                    text=messages["api_error"] % context.job.context[3],
-                    disable_web_page_preview=True)
+                    chat_id=context.job.data[2],
+                    text=messages["api_error"] % context.job.data[3],
+                    disable_web_page_preview=True,
+                )
                 return
 
-            soup = BeautifulSoup(response.text, 'html.parser')
+            soup = BeautifulSoup(response.text, "html.parser")
             new_text = soup.prettify()
             await context.bot.send_message(
-                    chat_id=context.job.context[2],
-                    text=messages["api_response"] % ""
-                    f"{context.job.context[3]}\n{new_text}",
-                    disable_web_page_preview=True)
+                chat_id=context.job.data[2],
+                text=messages["api_response"] % "" f"{context.job.data[3]}\n{new_text}",
+                disable_web_page_preview=True,
+            )
         except Exception as e:
             logger.error(e)
             await context.bot.send_message(
-                    chat_id=context.job.context[2],
-                    text=messages["api_fail"] % context.job.context[3],
-                    disable_web_page_preview=True)
+                chat_id=context.job.data[2],
+                text=messages["api_fail"] % context.job.data[3],
+                disable_web_page_preview=True,
+            )
         await self.remove_job_if_exists(context.job.name, context)
 
     async def check_api_and_compare(self, context: CallbackContext):
-        if context.job.name.startswith('instant_'):
+        if context.job.name.startswith("instant_"):
             await self.remove_job_if_exists(context.job.name, context)
         try:
-            response = requests.get(context.job.context[3])
+            response = requests.get(context.job.data[3])
             if response.status_code != 200:
                 return
 
-            soup = BeautifulSoup(response.text, 'html.parser')
+            soup = BeautifulSoup(response.text, "html.parser")
             new_text = soup.prettify()
             old_text = ""
 
-            if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
-                if not context.job.context[5] is None:
-                    with open(f"{os.getenv('FILESYSTEM_PATH')}"
-                              f"/api_{context.job.context[0]}_old.txt",
-                              "w") as f:
-                        f.write(context.job.context[5])
+            if os.getenv("USE_FILESYSTEM_TO_SAVE_IMAGES") == "False":
+                if not context.job.data[5] is None:
+                    with open(
+                        f"{os.getenv('FILESYSTEM_PATH')}"
+                        f"/api_{context.job.data[0]}_old.txt",
+                        "w",
+                    ) as f:
+                        f.write(context.job.data[5])
 
-            if os.path.exists(f"{os.getenv('FILESYSTEM_PATH')}/"
-                              f"api_{context.job.context[0]}_old.txt"):
-                with open(f"{os.getenv('FILESYSTEM_PATH')}/"
-                          f"api_{context.job.context[0]}_old.txt", "r") as f:
+            if os.path.exists(
+                f"{os.getenv('FILESYSTEM_PATH')}/" f"api_{context.job.data[0]}_old.txt"
+            ):
+                with open(
+                    f"{os.getenv('FILESYSTEM_PATH')}/"
+                    f"api_{context.job.data[0]}_old.txt",
+                    "r",
+                ) as f:
                     old_text = f.read()
 
                 if old_text != new_text:
                     await context.bot.send_message(
-                        chat_id=context.job.context[2],
-                        text=messages["api_change"] % context.job.context[3],
-                        disable_web_page_preview=True)
+                        chat_id=context.job.data[2],
+                        text=messages["api_change"] % context.job.data[3],
+                        disable_web_page_preview=True,
+                    )
                     await context.bot.send_message(
-                        chat_id=context.job.context[2],
-                        text=f"Old Response\n{old_text}")
+                        chat_id=context.job.data[2], text=f"Old Response\n{old_text}"
+                    )
                     await context.bot.send_message(
-                        chat_id=context.job.context[2],
-                        text=f"New Response\n{new_text}")
-                    with open(f"{os.getenv('FILESYSTEM_PATH')}/"
-                              f"api_{context.job.context[0]}"
-                              "_old.txt", "w") as f:
+                        chat_id=context.job.data[2], text=f"New Response\n{new_text}"
+                    )
+                    with open(
+                        f"{os.getenv('FILESYSTEM_PATH')}/"
+                        f"api_{context.job.data[0]}"
+                        "_old.txt",
+                        "w",
+                    ) as f:
                         f.write(new_text)
 
-                    if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
+                    if os.getenv("USE_FILESYSTEM_TO_SAVE_IMAGES") == "False":
                         self._db.update_tracking(
-                            context.job.context[0],
-                            'old_image',
-                            new_text)
+                            context.job.data[0], "old_image", new_text
+                        )
                 else:
-                    if context.job.name.startswith('instant_'):
+                    if context.job.name.startswith("instant_"):
                         await context.bot.send_message(
-                         chat_id=context.job.context[2],
-                         text=messages["api_nochange"] % context.job.
-                         context[3],
-                         disable_web_page_preview=True)
+                            chat_id=context.job.data[2],
+                            text=messages["api_nochange"] % context.job.context[3],
+                            disable_web_page_preview=True,
+                        )
             else:
-                f = open(f"{os.getenv('FILESYSTEM_PATH')}/"
-                         f"api_{context.job.context[0]}_old.txt", "w")
+                f = open(
+                    f"{os.getenv('FILESYSTEM_PATH')}/"
+                    f"api_{context.job.data[0]}_old.txt",
+                    "w",
+                )
                 f.write(new_text)
                 f.close()
 
-                if os.getenv('USE_FILESYSTEM_TO_SAVE_IMAGES') == 'False':
-                    self._db.update_tracking(
-                        context.job.context[0],
-                        'old_image',
-                        new_text)
+                if os.getenv("USE_FILESYSTEM_TO_SAVE_IMAGES") == "False":
+                    self._db.update_tracking(context.job.data[0], "old_image", new_text)
         except Exception as e:
             logger.error(e)
 
@@ -896,16 +932,18 @@ class Actions:
                     timedelta(minutes=url[8]),
                     first=datetime_to_run,
                     chat_id=url[2],
-                    context=url,
-                    name=str(url[0]))
+                    data=url,
+                    name=str(url[0]),
+                )
             elif url[4].lower() == "screenshot":
                 jobs.run_repeating(
                     self.take_screenshot_and_compare,
                     timedelta(minutes=url[8]),
                     first=datetime_to_run,
                     chat_id=url[2],
-                    context=url,
-                    name=str(url[0]))
+                    data=url,
+                    name=str(url[0]),
+                )
 
             details = jobs.get_jobs_by_name(str(url[0]))
             logger.info(details)

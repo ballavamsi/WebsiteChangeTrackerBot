@@ -2,7 +2,7 @@ python-dotenv
 APScheduler
 cachetools
 certifi
-python-telegram-bot==20.0a0
+python-telegram-bot==20.0
 requests
 db-sqlite3
 validators
